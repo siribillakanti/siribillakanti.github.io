@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: light;
+  }
+
+  body {
+    background-color: #FAF7EE;
+    color: #2A102A;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  /* Custom tactile scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #FAF7EE;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #5C1327;
+    border-radius: 4px;
+    border: 2px solid #FAF7EE;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2A102A;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom cursor: hide native cursor on fine-pointer devices (public site only), but preserve for inputs */
+@media (pointer: fine) {
+  .portfolio-public,
+  .portfolio-public * {
+    cursor: none;
+  }
+  /* Always restore native text cursor on form inputs and editable text */
+  .portfolio-public input,
+  .portfolio-public textarea,
+  .portfolio-public select,
+  .portfolio-public [contenteditable="true"] {
+    cursor: text !important;
+  }
+  /* Keep native cursor inside admin dashboard and all interactive inputs */
+  .admin-dashboard,
+  .admin-dashboard * {
+    cursor: auto !important;
+  }
+  .admin-dashboard button,
+  .admin-dashboard a,
+  .admin-dashboard [role="button"] {
+    cursor: pointer !important;
+  }
+  .admin-dashboard input,
+  .admin-dashboard textarea,
+  .admin-dashboard select {
+    cursor: text !important;
+  }
+}
+
+/* Respect reduced motion: restore native cursor */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    cursor: auto !important;
+  }
+}
+
+/* Print Styles for Resume */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header, nav, button, footer, .no-print {
+    display: none !important;
+  }
+}
