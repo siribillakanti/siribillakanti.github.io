@@ -137,36 +137,38 @@ export const SettingsEditor: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start space-x-3">
-          <ShieldAlert className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+        <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 flex items-start space-x-3">
+          <ShieldAlert className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <strong className="font-bold">Security Architecture Notice:</strong>
+            <strong className="font-bold">Production Security Architecture:</strong>
             <p className="leading-relaxed">
-              When <strong>VITE_SUPABASE_URL</strong> and <strong>VITE_SUPABASE_ANON_KEY</strong> are set in your environment, authentication connects to Supabase Auth with PostgreSQL Row Level Security (RLS) policies. In local offline development mode, the master passcode below secures your console session.
+              Your portfolio CMS is secured by <strong>Supabase Auth</strong> and strict <strong>PostgreSQL Row Level Security (RLS)</strong>. Only your whitelisted administrator account can modify data. Passcode fallbacks are completely disabled in production builds.
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSavePin} className="space-y-3">
-          <div className="max-w-xs space-y-1">
-            <label className="font-mono text-xs font-bold text-plum-800 block">
-              Change Master Passcode
-            </label>
-            <input
-              type="text"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              placeholder="e.g. siri2025"
-              className="w-full px-3 py-2 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-xs rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95"
-          >
-            Update Passcode
-          </button>
-        </form>
+        {import.meta.env.DEV && (
+          <form onSubmit={handleSavePin} className="space-y-3 pt-2 border-t border-plum-900/10">
+            <div className="max-w-xs space-y-1">
+              <label className="font-mono text-xs font-bold text-plum-800 block">
+                Local Dev Offline Passcode
+              </label>
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="Local dev only"
+                className="w-full px-3 py-2 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-xs rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95"
+            >
+              Update Dev Passcode
+            </button>
+          </form>
+        )}
       </div>
 
       {/* 2. Backup & Migration (Export / Import) */}

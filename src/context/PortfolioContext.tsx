@@ -269,6 +269,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const [adminPin, setAdminPin] = useState<string>(() => {
+    if (!import.meta.env.DEV) return '';
     return localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || localStorage.getItem(LEGACY_KEYS.ADMIN_PIN) || 'siri2025';
   });
 
@@ -282,6 +283,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [selectedCert, setSelectedCert] = useState<Certification | null>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    if (!import.meta.env.DEV) return false;
     return (
       localStorage.getItem(STORAGE_KEYS.AUTH) === 'true' ||
       localStorage.getItem(LEGACY_KEYS.AUTH) === 'true'
@@ -325,7 +327,12 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Auth Operations
   const loginAdmin = (enteredPin: string): boolean => {
-    if (enteredPin === adminPin) {
+    // In production, local passcode fallback is permanently disabled
+    if (!import.meta.env.DEV) {
+      console.warn('Local passcode login is blocked in production builds.');
+      return false;
+    }
+    if (adminPin && enteredPin === adminPin) {
       setIsAdminAuthenticated(true);
       localStorage.setItem(STORAGE_KEYS.AUTH, 'true');
       showToast('Admin Console Unlocked', 'Welcome to the Portfolio CMS.', 'success');
@@ -342,6 +349,10 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const updateAdminPin = (newPin: string): boolean => {
+    if (!import.meta.env.DEV) {
+      showToast('Action Blocked', 'Passcode modifications are disabled in production builds.', 'info');
+      return false;
+    }
     if (newPin.trim().length < 4) {
       showToast('Passcode Too Short', 'Minimum 4 characters required.', 'info');
       return false;

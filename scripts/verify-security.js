@@ -126,6 +126,24 @@ if (schemaContent.includes('published = true OR public.is_portfolio_admin()')) {
   passed = false;
 }
 
+// TEST 7: Verify absence of hardcoded or exposed passcode in UI components
+console.log('\nTEST 7: Verifying elimination of passcode exposure from UI...');
+const adminDashboardCode = fs.readFileSync('src/components/Admin/AdminDashboard.tsx', 'utf8');
+if (adminDashboardCode.includes('{adminPin}') || adminDashboardCode.includes('Dev Mode Passcode:')) {
+  console.error('  [FAIL] Detected exposed adminPin or Dev Mode Passcode banner in AdminDashboard.tsx!');
+  passed = false;
+} else {
+  console.log('  [PASS] No plaintext passcode display or dev mode banner in AdminDashboard.');
+}
+
+const contextCode = fs.readFileSync('src/context/PortfolioContext.tsx', 'utf8');
+if (contextCode.includes('if (!import.meta.env.DEV) return false;')) {
+  console.log('  [PASS] Local passcode authentication strictly guarded by import.meta.env.DEV.');
+} else {
+  console.error('  [FAIL] Local passcode authentication is not restricted to dev mode!');
+  passed = false;
+}
+
 console.log('\n====================================================');
 if (passed) {
   console.log('  STATIC AUDIT RESULT: ALL STATIC CHECKS PASSED');

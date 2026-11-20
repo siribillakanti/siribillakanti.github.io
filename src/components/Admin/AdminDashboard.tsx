@@ -83,8 +83,13 @@ export const AdminDashboard: React.FC = () => {
 
   if (!isAdminOpen) return null;
 
-  // Determine effective authentication status
-  const effectiveIsAuthenticated = isSupabaseActive ? isAdmin : isAdminAuthenticated;
+  const isDev = import.meta.env.DEV;
+
+  // In production, authentication is EXCLUSIVELY Supabase Auth with admin UID verification.
+  // Local passcode fallback is strictly forbidden in production builds.
+  const effectiveIsAuthenticated = isDev
+    ? (isSupabaseActive ? isAdmin : isAdminAuthenticated)
+    : Boolean(isSupabaseActive && isAdmin);
 
   // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
@@ -100,8 +105,10 @@ export const AdminDashboard: React.FC = () => {
       } else {
         showToast('Access Granted', 'Administrator authenticated with Supabase.', 'success');
       }
-    } else {
+    } else if (isDev) {
       loginAdmin(passwordInput);
+    } else {
+      setAuthError('Local passcode fallback is permanently disabled in production builds. Supabase Auth is required.');
     }
   };
 
@@ -154,7 +161,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="fixed inset-0 z-50 bg-ivory-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-ivory-50 border-3 border-plum-900 rounded-card-lg p-8 shadow-card-xl text-center space-y-6">
           <div className="w-16 h-16 rounded-2xl bg-butter-300 border-2 border-plum-900 shadow-card flex items-center justify-center mx-auto text-bordeaux-800">
-            {isSupabaseActive ? <ShieldCheck className="w-8 h-8" /> : <Key className="w-8 h-8" />}
+            <ShieldCheck className="w-8 h-8" />
           </div>
 
           <div>
@@ -164,17 +171,18 @@ export const AdminDashboard: React.FC = () => {
             <p className="font-sans text-xs sm:text-sm text-plum-700 mt-1">
               {isSupabaseActive
                 ? 'Sign in with your administrator Supabase credentials.'
-                : 'Enter your master passcode to access the visual dashboard.'}
+                : (isDev
+                    ? 'Enter your master passcode to access the local dev dashboard.'
+                    : 'The CMS console is protected by Supabase Auth and PostgreSQL RLS.')}
             </p>
 
             <div className="mt-3 p-2 bg-ivory-200 rounded-lg border border-plum-900/15 text-xs font-mono text-plum-600 flex items-center justify-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${isSupabaseActive ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${isSupabaseActive ? 'bg-emerald-500' : (isDev ? 'bg-amber-500' : 'bg-red-500')}`}></span>
               <span>
-                {isSupabaseActive ? 'Supabase Auth & RLS Connected' : `Dev Mode Passcode: `}
+                {isSupabaseActive
+                  ? 'Supabase Auth & RLS Connected'
+                  : (isDev ? 'Local Offline Dev Mode' : 'Supabase Authentication Required')}
               </span>
-              {!isSupabaseActive && (
-                <strong className="text-bordeaux-800 font-bold">{adminPin}</strong>
-              )}
             </div>
           </div>
 
@@ -184,35 +192,44 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-3">
-            {isSupabaseActive && (
+          {(!isSupabaseActive && !isDev) ? (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs font-mono text-amber-900 text-left space-y-2">
+              <p className="font-bold">Supabase Credentials Required</p>
+              <p className="text-[11px] leading-relaxed">
+                Production builds exclusively use Supabase Auth. Please ensure <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> are configured in your GitHub repository secrets.
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleLogin} className="space-y-3">
+              {isSupabaseActive && (
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@email.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-bordeaux-800"
+                  autoFocus
+                />
+              )}
               <input
-                type="email"
+                type="password"
                 required
-                placeholder="admin@email.com"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                className="w-full px-4 py-2.5 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-bordeaux-800"
-                autoFocus
+                placeholder={isSupabaseActive ? 'Password' : 'Dev Master Passcode'}
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="w-full px-4 py-2.5 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm text-center focus:outline-none focus:ring-2 focus:ring-bordeaux-800"
+                autoFocus={!isSupabaseActive}
               />
-            )}
-            <input
-              type="password"
-              required
-              placeholder={isSupabaseActive ? 'Password' : 'Master Passcode'}
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              className="w-full px-4 py-2.5 bg-ivory-100 border-2 border-plum-900 rounded-xl font-mono text-sm text-center focus:outline-none focus:ring-2 focus:ring-bordeaux-800"
-              autoFocus={!isSupabaseActive}
-            />
-            <button
-              type="submit"
-              disabled={isSubmittingAuth}
-              className="w-full py-3 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-sm rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95 disabled:opacity-50"
-            >
-              {isSubmittingAuth ? 'Authenticating...' : 'Unlock Dashboard'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isSubmittingAuth}
+                className="w-full py-3 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-sm rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isSubmittingAuth ? 'Authenticating...' : (isSupabaseActive ? 'Sign In as Administrator' : 'Unlock Local Console')}
+              </button>
+            </form>
+          )}
 
           <button
             type="button"
