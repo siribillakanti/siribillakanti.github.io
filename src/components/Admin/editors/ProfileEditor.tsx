@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { usePortfolio } from '../../../context/PortfolioContext';
 import { processImageFile } from '../../../utils/imageStorage';
+import { AboutEditor } from './AboutEditor';
 import { 
   Upload, 
   Trash2, 
@@ -16,14 +17,15 @@ import {
   Layers,
   Terminal,
   Compass,
-  FileText
+  FileText,
+  BookOpen
 } from 'lucide-react';
 
 export const ProfileEditor: React.FC = () => {
   const { profile, updateProfile, uploadProfilePhoto, removeProfilePhoto, showToast } = usePortfolio();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'hero' | 'decorations' | 'preview'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'about' | 'hero' | 'decorations' | 'preview'>('profile');
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,6 +118,19 @@ export const ProfileEditor: React.FC = () => {
           }`}
         >
           Identity & Photo
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('about')}
+          className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg font-mono text-xs font-bold transition-all ${
+            activeTab === 'about'
+              ? 'bg-bordeaux-800 text-ivory-100 shadow-sm'
+              : 'text-plum-800 hover:bg-ivory-100'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>About Me Page</span>
         </button>
 
         <button
@@ -458,6 +473,13 @@ export const ProfileEditor: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================
+          TAB 1B: ABOUT ME PAGE DOSSIER
+      ======================================================== */}
+      {activeTab === 'about' && (
+        <AboutEditor />
       )}
 
       {/* ========================================================

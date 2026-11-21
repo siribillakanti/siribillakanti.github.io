@@ -321,3 +321,40 @@ TO authenticated;
 GRANT SELECT ON TABLE storage.buckets TO anon, authenticated;
 GRANT SELECT ON TABLE storage.objects TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE storage.objects TO authenticated;
+
+-- ====================================================================
+-- 11. CONTACT MESSAGES (ADDITIVE MESSAGE ARCHIVE)
+-- ====================================================================
+-- Optional, non-breaking archive for contact form submissions.
+CREATE TABLE IF NOT EXISTS public.portfolio_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  subject TEXT,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+ALTER TABLE public.portfolio_messages ENABLE ROW LEVEL SECURITY;
+
+-- Allow public visitors and authenticated users to submit contact messages
+DROP POLICY IF EXISTS "Public insert contact messages" ON public.portfolio_messages;
+CREATE POLICY "Public insert contact messages"
+  ON public.portfolio_messages
+  FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+-- Only verified portfolio administrator can read or manage messages
+DROP POLICY IF EXISTS "Admin manage contact messages" ON public.portfolio_messages;
+CREATE POLICY "Admin manage contact messages"
+  ON public.portfolio_messages
+  FOR ALL
+  TO authenticated
+  USING (public.is_portfolio_admin())
+  WITH CHECK (public.is_portfolio_admin());
+
+-- Minimum SQL Grants for portfolio_messages
+GRANT INSERT ON TABLE public.portfolio_messages TO anon, authenticated;
+GRANT SELECT, UPDATE, DELETE ON TABLE public.portfolio_messages TO authenticated;

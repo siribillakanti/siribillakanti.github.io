@@ -22,11 +22,13 @@ import {
   X,
   Type,
   Sliders,
-  Globe
+  Globe,
+  BookOpen
 } from 'lucide-react';
 
 import { OverviewEditor } from './editors/OverviewEditor';
 import { ProfileEditor } from './editors/ProfileEditor';
+import { AboutEditor } from './editors/AboutEditor';
 import { ProjectsEditor } from './editors/ProjectsEditor';
 import { SkillsEditor } from './editors/SkillsEditor';
 import { EducationExperienceEditor } from './editors/EducationExperienceEditor';
@@ -45,6 +47,7 @@ import { useAuth } from '../../context/AuthContext';
 export type CMSTab = 
   | 'overview' 
   | 'profile' 
+  | 'about'
   | 'projects' 
   | 'sections'
   | 'decorations'
@@ -141,7 +144,8 @@ export const AdminDashboard: React.FC = () => {
 
   const navItems: { id: CMSTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'profile', label: 'Profile & About', icon: User },
+    { id: 'profile', label: 'Profile & Hero', icon: User },
+    { id: 'about', label: 'About Me Page', icon: BookOpen },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'sections', label: 'Section Headings', icon: Type },
     { id: 'decorations', label: 'Illustrations & Garden', icon: Sliders },
@@ -413,6 +417,7 @@ export const AdminDashboard: React.FC = () => {
             />
           )}
           {activeTab === 'profile' && <ProfileEditor />}
+          {activeTab === 'about' && <AboutEditor />}
           {activeTab === 'projects' && <ProjectsEditor />}
           {activeTab === 'sections' && <SectionsEditor />}
           {activeTab === 'decorations' && <DecorationsEditor />}

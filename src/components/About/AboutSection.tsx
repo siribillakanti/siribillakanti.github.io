@@ -1,30 +1,68 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../../context/PortfolioContext';
-import { Sparkles, GraduationCap, Code2, Compass, Heart, BookOpen, Terminal, Coffee } from 'lucide-react';
+import { INITIAL_ABOUT_DETAILS } from '../../data/initialData';
+import { Sparkles, GraduationCap, Code2, Compass, BookOpen } from 'lucide-react';
 import { StickerLayer } from '../Common/StickerLayer';
 
 export const AboutSection: React.FC = () => {
   const { profile, sectionsContent } = usePortfolio();
   const [activeDossier, setActiveDossier] = useState<'philosophy' | 'education' | 'curiosities'>('philosophy');
   const sec = sectionsContent.about;
+  const about = profile.aboutDetails || INITIAL_ABOUT_DETAILS;
+
+  // Resolved fallbacks
+  const title = about?.heading || sec?.title || 'About Me';
+  const subtitle = about?.subtitle || sec?.subtitle;
+  const description = about?.description || sec?.description;
+  const academicYear = about?.academicYearLabel || 'CS 2026';
+  const displayRole = about?.profileRole || profile.role;
+  const availability = about?.opportunityStatus || profile.availability;
+  const quote = about?.profileQuote || '"Writing clean algorithms by day, designing playful interfaces by night."';
+
+  // Tab labels
+  const philosophyTabLabel = about?.philosophyTabLabel || 'Engineering Philosophy';
+  const academicTabLabel = about?.academicTabLabel || 'Academic Foundation';
+  const interestsTabLabel = about?.interestsTabLabel || 'Interests & Pursuits';
+
+  // Philosophy data
+  const philosophyHeading = about?.philosophyHeading || 'Where Rigor Meets Tactile Play';
+  const philosophyParagraphs = about?.philosophyParagraphs?.length
+    ? about.philosophyParagraphs
+    : (INITIAL_ABOUT_DETAILS.philosophyParagraphs || []);
+  const philosophyCards = about?.philosophyHighlightCards?.length
+    ? about.philosophyHighlightCards
+    : (INITIAL_ABOUT_DETAILS.philosophyHighlightCards || []);
+
+  // Academic data
+  const academicHeading = about?.academicHeading || about?.degree || profile.education.degree;
+  const academicPeriod = about?.period || profile.education.period;
+  const academicInstitution = about?.institution || profile.education.institution;
+  const academicFocus = about?.focus || profile.education.focus;
+  const courseworkList = about?.coursework?.length ? about.coursework : profile.education.coursework;
+
+  // Interests data
+  const interestsHeading = about?.interestsHeading || 'Explorations & Creative Sparks';
+  const interestsDescription = about?.interestsDescription || 'When not writing code or debugging memory allocations, I immerse myself in creative and analytical pursuits that feed back into my engineering practice:';
+  const interestsList = about?.interests?.length ? about.interests : profile.interests;
 
   return (
     <section id="about" className="relative py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto overflow-visible">
       {/* Visual Customizer Stickers */}
       <StickerLayer pageId="about" />
+
       {/* Section Header */}
       <div className="mb-10 sm:mb-14">
         <h2 className="font-serif text-3xl sm:text-5xl font-bold text-bordeaux-800 tracking-tight">
-          {sec?.title || 'About Me'}
+          {title}
         </h2>
-        {sec?.subtitle && (
+        {subtitle && (
           <p className="font-mono text-xs sm:text-sm font-semibold text-raspberry-600 mt-1">
-            {sec.subtitle}
+            {subtitle}
           </p>
         )}
-        {sec?.description && (
+        {description && (
           <p className="font-sans text-sm sm:text-base text-plum-700 mt-2 max-w-2xl leading-relaxed">
-            {sec.description}
+            {description}
           </p>
         )}
       </div>
@@ -44,7 +82,7 @@ export const AboutSection: React.FC = () => {
               {/* Top Frame Stamp */}
               <div className="flex justify-between items-center text-[11px] font-mono text-butter-300 border-b border-plum-800 pb-2.5">
                 <span className="font-bold">{profile.name}</span>
-                <span>CS 2026</span>
+                <span>{academicYear}</span>
               </div>
 
               {/* Artistic Photo / Representation */}
@@ -110,21 +148,21 @@ export const AboutSection: React.FC = () => {
                   {profile.name}
                 </h3>
                 <p className="font-mono text-xs text-ivory-300 mt-0.5">
-                  {profile.role}
+                  {displayRole}
                 </p>
               </div>
 
               {/* Bottom Card Credentials Tag */}
               <div className="pt-2.5 border-t border-plum-800 flex justify-between items-center text-[10px] font-mono text-pistachio-300">
                 <span>📍 {profile.location}</span>
-                <span>{profile.availability}</span>
+                <span>{availability}</span>
               </div>
             </div>
 
             {/* Handwritten-style caption below photo */}
             <div className="mt-3 text-center">
               <p className="font-serif italic text-sm text-plum-800">
-                "Writing clean algorithms by day, designing playful interfaces by night."
+                {quote}
               </p>
             </div>
           </div>
@@ -143,7 +181,7 @@ export const AboutSection: React.FC = () => {
               }`}
             >
               <Code2 className="w-3.5 h-3.5" />
-              <span>Engineering Philosophy</span>
+              <span>{philosophyTabLabel}</span>
             </button>
 
             <button
@@ -155,7 +193,7 @@ export const AboutSection: React.FC = () => {
               }`}
             >
               <GraduationCap className="w-3.5 h-3.5" />
-              <span>Academic Foundation</span>
+              <span>{academicTabLabel}</span>
             </button>
 
             <button
@@ -167,7 +205,7 @@ export const AboutSection: React.FC = () => {
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>Interests & Pursuits</span>
+              <span>{interestsTabLabel}</span>
             </button>
           </div>
 
@@ -176,34 +214,33 @@ export const AboutSection: React.FC = () => {
             {activeDossier === 'philosophy' && (
               <div className="space-y-4">
                 <h3 className="font-serif text-2xl font-bold text-bordeaux-800">
-                  Where Rigor Meets Tactile Play
+                  {philosophyHeading}
                 </h3>
-                <p className="font-sans text-sm sm:text-base text-plum-900 leading-relaxed">
-                  I believe software is most powerful when it bridges invisible systems complexity with tangible, immediate responsiveness. A distributed data pipeline that synchronizes thousands of events per second should feel as seamless and tactile as turning a physical dial.
-                </p>
-                <p className="font-sans text-sm sm:text-base text-plum-900 leading-relaxed">
-                  In projects like <strong className="text-bordeaux-800">GesturePac</strong> and <strong className="text-cobalt-600">GestureStudio</strong>, I explored how computer vision can break through glass boundaries to translate human kinetic intuition into software control. In <strong className="text-bordeaux-800">Vaultly</strong> and <strong className="text-raspberry-600">InventoryOS</strong>, I engineered cryptographic guarantees and concurrency controls that protect sensitive user trust without sacrificing velocity.
-                </p>
+                {philosophyParagraphs.map((para, idx) => (
+                  <p key={idx} className="font-sans text-sm sm:text-base text-plum-900 leading-relaxed">
+                    {para}
+                  </p>
+                ))}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div className="p-3 bg-butter-300/40 rounded-xl border border-plum-900/15">
-                    <span className="font-mono text-xs font-bold text-bordeaux-800 block mb-1">
-                      HIGH-THROUGHPUT RELIABILITY
-                    </span>
-                    <span className="text-xs text-plum-800 leading-normal">
-                      Obsessed with sub-50ms latency, race condition prevention, and fault isolation.
-                    </span>
+                {philosophyCards.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {philosophyCards.map((card, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-xl border border-plum-900/15 ${
+                          idx % 2 === 0 ? 'bg-butter-300/40' : 'bg-pistachio-300/40'
+                        }`}
+                      >
+                        <span className="font-mono text-xs font-bold text-bordeaux-800 block mb-1">
+                          {card.title}
+                        </span>
+                        <span className="text-xs text-plum-800 leading-normal">
+                          {card.description}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-
-                  <div className="p-3 bg-pistachio-300/40 rounded-xl border border-plum-900/15">
-                    <span className="font-mono text-xs font-bold text-bordeaux-800 block mb-1">
-                      KINETIC & TACTILE DESIGN
-                    </span>
-                    <span className="text-xs text-plum-800 leading-normal">
-                      Every button click, keypress, and gesture trigger should have intentional physics and purpose.
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -212,15 +249,31 @@ export const AboutSection: React.FC = () => {
                 <div>
                   <div className="flex items-baseline justify-between flex-wrap gap-1">
                     <h3 className="font-serif text-2xl font-bold text-bordeaux-800">
-                      {profile.education.degree}
+                      {academicHeading}
                     </h3>
                     <span className="font-mono text-xs text-plum-600 font-bold bg-butter-300 px-2 py-0.5 rounded border border-plum-900/20">
-                      {profile.education.period}
+                      {academicPeriod}
                     </span>
                   </div>
                   <p className="font-mono text-xs text-raspberry-600 font-semibold mt-0.5">
-                    {profile.education.institution} • {profile.education.focus}
+                    {academicInstitution} {academicFocus && `• ${academicFocus}`}
                   </p>
+
+                  {/* Optional CGPA & SGPA Badges */}
+                  {(about?.cgpa || about?.sgpa) && (
+                    <div className="flex items-center gap-2 pt-2 flex-wrap">
+                      {about.cgpa && (
+                        <span className="font-mono text-xs font-bold text-bordeaux-800 bg-butter-300/60 px-2.5 py-0.5 rounded-lg border border-plum-900/20">
+                          CGPA: {about.cgpa}
+                        </span>
+                      )}
+                      {about.sgpa && (
+                        <span className="font-mono text-xs font-bold text-pistachio-800 bg-pistachio-300/60 px-2.5 py-0.5 rounded-lg border border-plum-900/20">
+                          SGPA: {about.sgpa}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2">
@@ -229,7 +282,7 @@ export const AboutSection: React.FC = () => {
                     Core Coursework & Competencies
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {profile.education.coursework.map((course, idx) => (
+                    {courseworkList.map((course, idx) => (
                       <div
                         key={idx}
                         className="flex items-center space-x-2 p-2 bg-ivory-100 rounded border border-plum-900/10 text-xs font-mono text-plum-900"
@@ -246,14 +299,16 @@ export const AboutSection: React.FC = () => {
             {activeDossier === 'curiosities' && (
               <div className="space-y-4">
                 <h3 className="font-serif text-2xl font-bold text-bordeaux-800">
-                  Explorations & Creative Sparks
+                  {interestsHeading}
                 </h3>
-                <p className="font-sans text-sm sm:text-base text-plum-900 leading-relaxed">
-                  When not writing code or debugging memory allocations, I immerse myself in creative and analytical pursuits that feed back into my engineering practice:
-                </p>
+                {interestsDescription && (
+                  <p className="font-sans text-sm sm:text-base text-plum-900 leading-relaxed">
+                    {interestsDescription}
+                  </p>
+                )}
 
                 <div className="space-y-2.5">
-                  {profile.interests.map((interest, idx) => (
+                  {interestsList.map((interest, idx) => (
                     <div
                       key={idx}
                       className="p-3 bg-ivory-100 rounded-xl border border-plum-900/15 flex items-center space-x-3"

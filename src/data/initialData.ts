@@ -6,7 +6,8 @@ import {
   ProfileData,
   SiteBranding,
   SectionContentConfig,
-  DetailedDecorationsConfig
+  DetailedDecorationsConfig,
+  AboutContentConfig
 } from '../types/portfolio';
 
 export const INITIAL_BRANDING: SiteBranding = {
@@ -137,6 +138,64 @@ export const INITIAL_DETAILED_DECORATIONS: DetailedDecorationsConfig = {
   },
 };
 
+export const INITIAL_ABOUT_DETAILS: AboutContentConfig = {
+  heading: 'About Me',
+  subtitle: 'Computer Science Student & Creative Engineer',
+  description: 'Curating software craft, systems correctness, and playful digital experiences.',
+
+  academicYearLabel: 'CS 2026',
+  profileRole: 'Computer Science Student & Software Developer',
+  opportunityStatus: 'Available for Summer & Fall Internships',
+  profileQuote: '"Writing clean algorithms by day, designing playful interfaces by night."',
+
+  philosophyTabLabel: 'Engineering Philosophy',
+  philosophyHeading: 'Where Rigor Meets Tactile Play',
+  philosophyParagraphs: [
+    'I believe software is most powerful when it bridges invisible systems complexity with tangible, immediate responsiveness. A distributed data pipeline that synchronizes thousands of events per second should feel as seamless and tactile as turning a physical dial.',
+    'In projects like GesturePac and GestureStudio, I explored how computer vision can break through glass boundaries to translate human kinetic intuition into software control. In Vaultly and InventoryOS, I engineered cryptographic guarantees and concurrency controls that protect sensitive user trust without sacrificing velocity.'
+  ],
+  philosophyHighlightCards: [
+    {
+      title: 'HIGH-THROUGHPUT RELIABILITY',
+      description: 'Obsessed with sub-50ms latency, race condition prevention, and fault isolation.'
+    },
+    {
+      title: 'KINETIC & TACTILE DESIGN',
+      description: 'Every button click, keypress, and gesture trigger should have intentional physics and purpose.'
+    }
+  ],
+
+  academicTabLabel: 'Academic Foundation',
+  academicHeading: 'Bachelor of Science in Computer Science',
+  degree: 'Bachelor of Science in Computer Science',
+  institution: 'University Computer Science',
+  period: '2022 — 2026',
+  cgpa: '9.42 / 10.0',
+  sgpa: '9.6 / 10.0',
+  focus: 'Software Engineering, Computer Vision, Distributed Systems & Machine Learning',
+  coursework: [
+    'Data Structures & Algorithms',
+    'Operating Systems & Systems Programming',
+    'Computer Vision & Image Processing',
+    'Distributed Systems & Cloud Computing',
+    'Database Management Systems & SQL',
+    'Object-Oriented Design & Design Patterns',
+    'Machine Learning & Deep Neural Networks',
+    'Computer Networks & Protocols'
+  ],
+
+  interestsTabLabel: 'Interests & Pursuits',
+  interestsHeading: 'Explorations & Creative Sparks',
+  interestsDescription: 'When not writing code or debugging memory allocations, I immerse myself in creative and analytical pursuits that feed back into my engineering practice:',
+  interests: [
+    'Computer Vision & Gesture Computing',
+    'Distributed Systems & Concurrency',
+    'Interactive Editorial Web Design',
+    'Cryptographic Privacy & Zero-Knowledge',
+    'Human-Computer Interaction (HCI)'
+  ]
+};
+
 export const INITIAL_PROFILE: ProfileData = {
   name: 'Siri Billakanti',
   tagline: "Software Engineer & Creative Builder",
@@ -155,6 +214,7 @@ export const INITIAL_PROFILE: ProfileData = {
   location: 'Open to Relocation & Remote',
   photoFrameShape: 'rounded',
   photoPosition: 'center',
+  aboutDetails: INITIAL_ABOUT_DETAILS,
   heroCardConfig: {
     primaryButtonLabel: 'Explore Projects',
     secondaryButtonLabel: 'Inspect Resume',

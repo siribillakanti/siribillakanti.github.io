@@ -160,6 +160,48 @@ export interface SectionContentConfig {
   contact: SectionHeadingItem;
 }
 
+export interface HighlightCard {
+  id?: string;
+  title: string;
+  description: string;
+}
+
+export interface AboutContentConfig {
+  // A. About page introduction
+  heading?: string;
+  subtitle?: string;
+  description?: string;
+
+  // B. Profile card
+  academicYearLabel?: string;
+  profileRole?: string;
+  opportunityStatus?: string;
+  profileQuote?: string;
+
+  // C. Engineering Philosophy tab
+  philosophyTabLabel?: string;
+  philosophyHeading?: string;
+  philosophyParagraphs?: string[];
+  philosophyHighlightCards?: HighlightCard[];
+
+  // D. Academic Foundation tab
+  academicTabLabel?: string;
+  academicHeading?: string;
+  degree?: string;
+  institution?: string;
+  period?: string;
+  cgpa?: string;
+  sgpa?: string;
+  focus?: string;
+  coursework?: string[];
+
+  // E. Interests & Pursuits tab
+  interestsTabLabel?: string;
+  interestsHeading?: string;
+  interestsDescription?: string;
+  interests?: string[];
+}
+
 export interface ProfileData {
   name: string;
   tagline: string;
@@ -180,6 +222,7 @@ export interface ProfileData {
   resumeUrl?: string;
   resumeFileName?: string;
   resumeUploadDate?: string;
+  aboutDetails?: AboutContentConfig;
   education: {
     degree: string;
     institution: string;
