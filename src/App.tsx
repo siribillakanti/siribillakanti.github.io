@@ -16,9 +16,27 @@ import { CertModal } from './components/Credentials/CertModal';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { ToastContainer } from './components/Common/Toast';
 import { CustomCursor } from './components/Common/CustomCursor';
+import { BrandLogo } from './components/Common/BrandLogo';
 
 const PortfolioContent: React.FC = () => {
-  const { selectedProject, setSelectedProject } = usePortfolio();
+  const { isInitialLoading, selectedProject, setSelectedProject } = usePortfolio();
+
+  if (isInitialLoading) {
+    return (
+      <div className="min-h-screen bg-ivory-100 flex flex-col items-center justify-center font-sans text-plum-900 select-none">
+        <GrainOverlay />
+        <div className="flex flex-col items-center space-y-4 p-8 text-center">
+          <BrandLogo size={56} />
+          <div>
+            <h1 className="font-serif text-2xl font-bold text-bordeaux-800">Siri Billakanti</h1>
+            <p className="font-mono text-xs text-plum-600 mt-1 uppercase tracking-widest font-semibold">
+              Loading Portfolio...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleExploreClick = () => {
     const el = document.getElementById('work');

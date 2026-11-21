@@ -234,3 +234,17 @@ export interface ProfileData {
   experiences?: ExperienceItem[];
   socialLinks?: SocialLink[];
 }
+
+export interface PortfolioDocument {
+  version: number;
+  exportDate: string;
+  branding: SiteBranding;
+  profile: ProfileData;
+  sectionsContent: SectionContentConfig;
+  detailedDecorations: DetailedDecorationsConfig;
+  projects: Project[];
+  skills: SkillItem[];
+  certifications: Certification[];
+  achievements: Achievement[];
+  stickers?: any;
+}

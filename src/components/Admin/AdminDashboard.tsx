@@ -23,7 +23,8 @@ import {
   Type,
   Sliders,
   Globe,
-  BookOpen
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 
 import { OverviewEditor } from './editors/OverviewEditor';
@@ -69,6 +70,7 @@ export const AdminDashboard: React.FC = () => {
     logoutAdmin,
     adminPin,
     hasUnsavedChanges,
+    isSaving,
     saveAllChanges,
     discardUnsavedChanges,
     lastSavedTimestamp,
@@ -136,10 +138,12 @@ export const AdminDashboard: React.FC = () => {
     setIsAdminOpen(false);
   };
 
-  const handleConfirmExitSave = () => {
-    saveAllChanges();
-    setShowExitConfirm(false);
-    setIsAdminOpen(false);
+  const handleConfirmExitSave = async () => {
+    const success = await saveAllChanges();
+    if (success) {
+      setShowExitConfirm(false);
+      setIsAdminOpen(false);
+    }
   };
 
   const navItems: { id: CMSTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -389,11 +393,21 @@ export const AdminDashboard: React.FC = () => {
 
             <button
               type="button"
+              disabled={isSaving}
               onClick={saveAllChanges}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-xs sm:text-sm rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-bordeaux-800 hover:bg-bordeaux-900 text-ivory-100 font-sans font-bold text-xs sm:text-sm rounded-xl border-2 border-plum-900 shadow-card transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4 text-butter-300" />
-              <span>Save Changes</span>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-butter-300 animate-spin" />
+                  <span>Publishing...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-butter-300" />
+                  <span>Save Changes</span>
+                </>
+              )}
             </button>
 
             <button

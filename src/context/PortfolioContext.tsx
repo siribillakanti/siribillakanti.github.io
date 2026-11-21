@@ -9,7 +9,8 @@ import {
   SocialLink,
   SiteBranding,
   SectionContentConfig,
-  DetailedDecorationsConfig
+  DetailedDecorationsConfig,
+  PortfolioDocument
 } from '../types/portfolio';
 import { 
   INITIAL_PROFILE, 
@@ -19,9 +20,11 @@ import {
   INITIAL_ACHIEVEMENTS,
   INITIAL_BRANDING,
   INITIAL_SECTIONS,
-  INITIAL_DETAILED_DECORATIONS
+  INITIAL_DETAILED_DECORATIONS,
+  INITIAL_ABOUT_DETAILS
 } from '../data/initialData';
 import { saveMediaItem, getMediaItem, deleteMediaItem } from '../utils/imageStorage';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface ToastMessage {
   id: string;
@@ -31,6 +34,7 @@ interface ToastMessage {
 }
 
 interface PortfolioContextType {
+  isInitialLoading: boolean;
   profile: ProfileData;
   projects: Project[];
   skills: SkillItem[];
@@ -58,7 +62,8 @@ interface PortfolioContextType {
   // Unsaved Changes Tracking
   hasUnsavedChanges: boolean;
   setHasUnsavedChanges: (val: boolean) => void;
-  saveAllChanges: () => void;
+  isSaving: boolean;
+  saveAllChanges: () => Promise<boolean>;
   discardUnsavedChanges: () => void;
   lastSavedTimestamp: string | null;
 
@@ -290,18 +295,179 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
   });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => {
+    // Only block initial rendering if the visitor has never loaded the site before (cache empty)
+    return !localStorage.getItem(STORAGE_KEYS.PROFILE);
+  });
 
-  // Load persistent photo & custom logo from IndexedDB on initial mount
+  // Helper: Upload Base64 image to Supabase Storage bucket and return public CDN URL
+  async function uploadDataUrlToStorage(
+    bucket: string,
+    path: string,
+    dataUrl: string
+  ): Promise<string | null> {
+    if (!isSupabaseConfigured() || !supabase) return null;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
+
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const contentType = dataUrl.split(';')[0]?.replace('data:', '') || 'image/png';
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(path, blob, {
+          upsert: true,
+          contentType,
+          cacheControl: '3600',
+        });
+
+      if (error) {
+        console.warn('[Storage] Image upload to Supabase returned error:', error.message);
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+      return `${urlData.publicUrl}?t=${Date.now()}`;
+    } catch (err: any) {
+      console.warn('[Storage] Image upload exception:', err?.message);
+      return null;
+    }
+  }
+
+  // Synchronize live portfolio content from Supabase on initial mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncLivePortfolio() {
+      if (!isSupabaseConfigured() || !supabase) {
+        if (isMounted) setIsInitialLoading(false);
+        return;
+      }
+
+      try {
+        const { data: record, error } = await supabase
+          .from('portfolio_profile')
+          .select('data, updated_at')
+          .eq('id', 'siri')
+          .maybeSingle();
+
+        if (error) {
+          console.warn('[PortfolioContext] Failed to fetch live portfolio:', error.message);
+          if (isMounted) setIsInitialLoading(false);
+          return;
+        }
+
+        if (record && record.data && typeof record.data === 'object' && Object.keys(record.data).length > 0) {
+          const doc = record.data;
+
+          if (isMounted) {
+            // 1. Profile & About
+            if (doc.profile && typeof doc.profile === 'object') {
+              setProfile((prev) => ({
+                ...INITIAL_PROFILE,
+                ...doc.profile,
+                aboutDetails: doc.profile.aboutDetails || INITIAL_ABOUT_DETAILS,
+              }));
+              localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(doc.profile));
+            }
+
+            // 2. Projects
+            if (Array.isArray(doc.projects)) {
+              setProjects(doc.projects);
+              localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(doc.projects));
+            }
+
+            // 3. Skills
+            if (Array.isArray(doc.skills)) {
+              setSkills(doc.skills);
+              localStorage.setItem(STORAGE_KEYS.SKILLS, JSON.stringify(doc.skills));
+            }
+
+            // 4. Certifications
+            if (Array.isArray(doc.certifications)) {
+              setCertifications(doc.certifications);
+              localStorage.setItem(STORAGE_KEYS.CERTS, JSON.stringify(doc.certifications));
+            }
+
+            // 5. Achievements
+            if (Array.isArray(doc.achievements)) {
+              setAchievements(doc.achievements);
+              localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(doc.achievements));
+            }
+
+            // 6. Branding
+            if (doc.branding && typeof doc.branding === 'object') {
+              setBranding((prev) => ({ ...INITIAL_BRANDING, ...doc.branding }));
+              localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(doc.branding));
+            }
+
+            // 7. Section Content
+            if (doc.sectionsContent && typeof doc.sectionsContent === 'object') {
+              setSectionsContent((prev) => ({ ...INITIAL_SECTIONS, ...doc.sectionsContent }));
+              localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(doc.sectionsContent));
+            }
+
+            // 8. Detailed Decorations
+            if (doc.detailedDecorations && typeof doc.detailedDecorations === 'object') {
+              setDetailedDecorations((prev) => ({ ...INITIAL_DETAILED_DECORATIONS, ...doc.detailedDecorations }));
+              localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(doc.detailedDecorations));
+            }
+
+            // 9. Stickers
+            if (doc.stickers && typeof doc.stickers === 'object') {
+              localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify(doc.stickers));
+              window.dispatchEvent(new Event('stickersUpdated'));
+            }
+
+            // 10. Last saved timestamp
+            if (record.updated_at) {
+              const formattedTime = new Date(record.updated_at).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              setLastSavedTimestamp(formattedTime);
+              localStorage.setItem(STORAGE_KEYS.LAST_SAVED, formattedTime);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('[PortfolioContext] Supabase live sync exception:', err?.message);
+      } finally {
+        if (isMounted) setIsInitialLoading(false);
+      }
+    }
+
+    syncLivePortfolio();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load persistent photo & custom logo from IndexedDB if not already defined as a remote CDN URL
   useEffect(() => {
     getMediaItem('profile_photo').then((storedPhoto) => {
       if (storedPhoto) {
-        setProfile((prev) => ({ ...prev, photoUrl: storedPhoto }));
+        setProfile((prev) => {
+          if (prev.photoUrl && (prev.photoUrl.startsWith('http://') || prev.photoUrl.startsWith('https://'))) {
+            return prev;
+          }
+          return { ...prev, photoUrl: storedPhoto };
+        });
       }
     });
 
     getMediaItem('custom_logo').then((storedLogo) => {
       if (storedLogo) {
-        setBranding((prev) => ({ ...prev, logoImageUrl: storedLogo }));
+        setBranding((prev) => {
+          if (prev.logoImageUrl && (prev.logoImageUrl.startsWith('http://') || prev.logoImageUrl.startsWith('https://'))) {
+            return prev;
+          }
+          return { ...prev, logoImageUrl: storedLogo };
+        });
       }
     });
   }, []);
@@ -363,25 +529,116 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return true;
   };
 
-  // Commit all state to LocalStorage
-  const saveAllChanges = () => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
-      localStorage.setItem(STORAGE_KEYS.SKILLS, JSON.stringify(skills));
-      localStorage.setItem(STORAGE_KEYS.CERTS, JSON.stringify(certifications));
-      localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(achievements));
-      localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(branding));
-      localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(sectionsContent));
-      localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(detailedDecorations));
+  const [isSaving, setIsSaving] = useState(false);
 
-      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastSavedTimestamp(now);
-      localStorage.setItem(STORAGE_KEYS.LAST_SAVED, now);
+  // Commit all state to LocalStorage and publish live to Supabase
+  const saveAllChanges = async (): Promise<boolean> => {
+    if (isSaving) return false;
+    setIsSaving(true);
+
+    try {
+      let stickersData = null;
+      try {
+        const savedStickers = localStorage.getItem('siri_portfolio_stickers_v1');
+        if (savedStickers) stickersData = JSON.parse(savedStickers);
+      } catch (e) {
+        // ignore
+      }
+
+      // 1. Always save locally first so work is never lost
+      try {
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+        localStorage.setItem(STORAGE_KEYS.SKILLS, JSON.stringify(skills));
+        localStorage.setItem(STORAGE_KEYS.CERTS, JSON.stringify(certifications));
+        localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(achievements));
+        localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(branding));
+        localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(sectionsContent));
+        localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(detailedDecorations));
+
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastSavedTimestamp(now);
+        localStorage.setItem(STORAGE_KEYS.LAST_SAVED, now);
+      } catch (e) {
+        console.warn('[PortfolioContext] Local storage write notice:', e);
+      }
+
+      // 2. Prepare complete centralized payload
+      const payload: PortfolioDocument = {
+        version: 4,
+        exportDate: new Date().toISOString(),
+        branding,
+        profile,
+        sectionsContent,
+        detailedDecorations,
+        projects,
+        skills,
+        certifications,
+        achievements,
+        stickers: stickersData,
+      };
+
+      // 3. If Supabase is active, verify authenticated session and UPSERT
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+          if (sessionError || !session) {
+            showToast(
+              'Saved Locally Only',
+              'Draft saved to browser cache. Sign in with Supabase to publish changes live to the website.',
+              'info'
+            );
+            setHasUnsavedChanges(true);
+            return false;
+          }
+
+          const { error: upsertError } = await supabase.from('portfolio_profile').upsert(
+            {
+              id: 'siri',
+              data: payload,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+
+          if (upsertError) {
+            console.error('[PortfolioContext] Supabase upsert error:', upsertError);
+            showToast(
+              'Publishing Failed',
+              `Changes saved to local draft, but failed to publish live: ${upsertError.message}`,
+              'info'
+            );
+            setHasUnsavedChanges(true);
+            return false;
+          }
+
+          // Successfully published live!
+          setHasUnsavedChanges(false);
+          showToast(
+            'Published Live!',
+            'All changes saved to Supabase and published live for all visitors.',
+            'success'
+          );
+          return true;
+        } catch (dbErr: any) {
+          console.error('[PortfolioContext] Supabase upsert exception:', dbErr);
+          showToast(
+            'Publishing Exception',
+            `Draft saved locally, but database sync encountered an error: ${dbErr?.message || 'Network error'}`,
+            'info'
+          );
+          setHasUnsavedChanges(true);
+          return false;
+        }
+      }
+
+      // 4. Offline / Dev mode fallback
       setHasUnsavedChanges(false);
-      showToast('All Changes Saved', `Saved locally at ${now}. Public site updated.`, 'success');
-    } catch (e) {
-      showToast('Storage Notice', 'Failed to save to localStorage. IndexedDB active.', 'info');
+      showToast('Local Draft Saved', 'Saved to local browser cache (offline dev mode).', 'success');
+      return true;
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -415,10 +672,25 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const uploadProfilePhoto = async (dataUrl: string) => {
+    // 1. Always store in local IndexedDB backup
     await saveMediaItem('profile_photo', dataUrl);
-    setProfile((prev) => ({ ...prev, photoUrl: dataUrl }));
+
+    // 2. Attempt upload to public Supabase Storage bucket
+    let publicUrl: string | null = null;
+    if (isSupabaseConfigured() && supabase) {
+      const ext = dataUrl.includes('image/webp') ? 'webp' : 'png';
+      publicUrl = await uploadDataUrlToStorage('portfolio-assets', `uploads/profile-photo.${ext}`, dataUrl);
+    }
+
+    const effectiveUrl = publicUrl || dataUrl;
+    setProfile((prev) => ({ ...prev, photoUrl: effectiveUrl }));
     setHasUnsavedChanges(true);
-    showToast('Photograph Stored', 'Profile photo updated & persisted in IndexedDB.', 'success');
+
+    if (publicUrl) {
+      showToast('Photo Uploaded to Storage', 'Photo stored on Supabase CDN for all public visitors.', 'success');
+    } else {
+      showToast('Photo Saved Locally', 'Photo stored in local IndexedDB. Sign in as admin to publish to CDN.', 'info');
+    }
   };
 
   const removeProfilePhoto = async () => {
@@ -436,9 +708,22 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const uploadCustomLogo = async (dataUrl: string) => {
     await saveMediaItem('custom_logo', dataUrl);
-    setBranding((prev) => ({ ...prev, logoImageUrl: dataUrl, logoType: 'customImage' }));
+
+    let publicUrl: string | null = null;
+    if (isSupabaseConfigured() && supabase) {
+      const ext = dataUrl.includes('image/webp') ? 'webp' : 'png';
+      publicUrl = await uploadDataUrlToStorage('portfolio-assets', `uploads/custom-logo.${ext}`, dataUrl);
+    }
+
+    const effectiveUrl = publicUrl || dataUrl;
+    setBranding((prev) => ({ ...prev, logoImageUrl: effectiveUrl, logoType: 'customImage' }));
     setHasUnsavedChanges(true);
-    showToast('Custom Logo Stored', 'Logo updated & persisted.', 'success');
+
+    if (publicUrl) {
+      showToast('Logo Uploaded to Storage', 'Custom logo stored on Supabase CDN for all public visitors.', 'success');
+    } else {
+      showToast('Logo Saved Locally', 'Logo stored in local IndexedDB.', 'info');
+    }
   };
 
   const removeCustomLogo = async () => {
@@ -704,20 +989,38 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // 2. Safely apply updates with fallbacks
       if (data.branding && typeof data.branding === 'object') {
-        setBranding(data.branding);
-        localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(data.branding));
+        const mergedBranding = { ...INITIAL_BRANDING, ...data.branding };
+        setBranding(mergedBranding);
+        localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(mergedBranding));
       }
       if (data.profile && typeof data.profile === 'object') {
-        setProfile(data.profile);
-        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data.profile));
+        const mergedProfile = {
+          ...INITIAL_PROFILE,
+          ...data.profile,
+          aboutDetails: data.profile.aboutDetails || INITIAL_ABOUT_DETAILS,
+        };
+        setProfile(mergedProfile);
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(mergedProfile));
       }
       if (data.sectionsContent && typeof data.sectionsContent === 'object') {
-        setSectionsContent(data.sectionsContent);
-        localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(data.sectionsContent));
+        const mergedSections = { ...INITIAL_SECTIONS, ...data.sectionsContent };
+        setSectionsContent(mergedSections);
+        localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(mergedSections));
       }
       if (data.detailedDecorations && typeof data.detailedDecorations === 'object') {
-        setDetailedDecorations(data.detailedDecorations);
-        localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(data.detailedDecorations));
+        const mergedDecorations = {
+          wordle: { ...INITIAL_DETAILED_DECORATIONS.wordle, ...(data.detailedDecorations.wordle || {}) },
+          callaLily: { ...INITIAL_DETAILED_DECORATIONS.callaLily, ...(data.detailedDecorations.callaLily || {}) },
+          tigerLily1: { ...INITIAL_DETAILED_DECORATIONS.tigerLily1, ...(data.detailedDecorations.tigerLily1 || {}) },
+          tigerLily2: { ...INITIAL_DETAILED_DECORATIONS.tigerLily2, ...(data.detailedDecorations.tigerLily2 || {}) },
+          orchid: { ...INITIAL_DETAILED_DECORATIONS.orchid, ...(data.detailedDecorations.orchid || {}) },
+          pacman: { ...INITIAL_DETAILED_DECORATIONS.pacman, ...(data.detailedDecorations.pacman || {}) },
+          vintageCamera: { ...INITIAL_DETAILED_DECORATIONS.vintageCamera, ...(data.detailedDecorations.vintageCamera || {}) },
+          instantCamera: { ...INITIAL_DETAILED_DECORATIONS.instantCamera, ...(data.detailedDecorations.instantCamera || {}) },
+          microchip: { ...INITIAL_DETAILED_DECORATIONS.microchip, ...(data.detailedDecorations.microchip || {}) },
+        };
+        setDetailedDecorations(mergedDecorations);
+        localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(mergedDecorations));
       }
       if (Array.isArray(data.projects)) {
         setProjects(data.projects);
@@ -746,8 +1049,8 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
-      setHasUnsavedChanges(false);
-      showToast('Portfolio Restored', 'Full portfolio backup imported successfully. Pre-restore backup saved.', 'success');
+      setHasUnsavedChanges(true);
+      showToast('Backup Restored', 'Portfolio backup loaded into editor. Click "Save All Changes" to publish live to Supabase.', 'success');
       return true;
     } catch (e: any) {
       showToast('Import Failed', e?.message || 'Invalid or corrupted JSON backup file format.', 'info');
@@ -781,6 +1084,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <PortfolioContext.Provider
       value={{
+        isInitialLoading,
         profile,
         projects,
         skills,
@@ -804,6 +1108,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateAdminPin,
         hasUnsavedChanges,
         setHasUnsavedChanges,
+        isSaving,
         saveAllChanges,
         discardUnsavedChanges,
         lastSavedTimestamp,
