@@ -16,6 +16,7 @@ import {
   Check,
   RefreshCw
 } from 'lucide-react';
+import { ScrapbookStickerStudio } from './ScrapbookStickerStudio';
 
 export const DecorationsEditor: React.FC = () => {
   const { detailedDecorations, updateDetailedDecorations, showToast } = usePortfolio();
@@ -317,6 +318,9 @@ export const DecorationsEditor: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Embedded Scrapbook Sticker Studio */}
+      <ScrapbookStickerStudio />
     </div>
   );
 };

@@ -17,6 +17,7 @@ dist-ssr
 *.zip
 *.tar.gz
 *.bak
+*-backup-*.json
 
 # Editor directories and files
 .vscode/*

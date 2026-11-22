@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePortfolio } from '../../context/PortfolioContext';
 import {
   Sparkles,
@@ -13,11 +13,20 @@ import {
   Lock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2
 } from 'lucide-react';
 import { StickerLayer } from '../Common/StickerLayer';
 import confetti from 'canvas-confetti';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+
+interface QuotaStatus {
+  isChecking: boolean;
+  isLimitReached: boolean;
+  currentCount: number;
+  maxLimit: number;
+  resetsAt: string | null;
+}
 
 interface FormData {
   name: string;
@@ -51,9 +60,42 @@ export const ContactSection: React.FC = () => {
   const [submittedName, setSubmittedName] = useState('');
   const [pendingMailtoUrl, setPendingMailtoUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaStatus>({
+    isChecking: false,
+    isLimitReached: false,
+    currentCount: 0,
+    maxLimit: 200,
+    resetsAt: null,
+  });
 
   const sec = sectionsContent.contact;
   const recipientEmail = profile.email || 'siri.billakanti1@gmail.com';
+
+  // Check server-side monthly quota (200 / month, reset 00:00 UTC 1st of month)
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchQuota() {
+      if (!isSupabaseConfigured() || !supabase) return;
+      try {
+        const { data, error } = await supabase.rpc('get_contact_quota');
+        if (!error && data && isMounted) {
+          setQuotaStatus({
+            isChecking: false,
+            isLimitReached: data.allowed === false,
+            currentCount: Number(data.current_count) || 0,
+            maxLimit: Number(data.max_limit) || 200,
+            resetsAt: data.resets_at_utc || null,
+          });
+        }
+      } catch (err: any) {
+        console.warn('[Contact Form] Monthly quota check notice:', err?.message);
+      }
+    }
+    fetchQuota();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(profile.email);
@@ -116,6 +158,31 @@ export const ContactSection: React.FC = () => {
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    // 0. Hard Monthly Quota Check (Server-Side in Supabase Postgres)
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data: qData } = await supabase.rpc('get_contact_quota');
+        if (qData && qData.allowed === false) {
+          setQuotaStatus({
+            isChecking: false,
+            isLimitReached: true,
+            currentCount: Number(qData.current_count) || 200,
+            maxLimit: 200,
+            resetsAt: qData.resets_at_utc || null,
+          });
+          setIsSubmitting(false);
+          showToast(
+            'Monthly Limit Reached',
+            'This contact form has reached its 200-message monthly limit. Please send an email directly.',
+            'info'
+          );
+          return;
+        }
+      } catch (qErr: any) {
+        console.warn('[Contact Form] Pre-dispatch quota check notice:', qErr?.message);
+      }
+    }
+
     const emailSubject = formData.subject.trim() || `Portfolio Inquiry from ${formData.name.trim()}`;
     const trimmedMessage = formData.message.trim();
     const senderName = formData.name.trim();
@@ -172,6 +239,31 @@ export const ContactSection: React.FC = () => {
           const data = await res.json();
           if (res.ok && data.success === true) {
             emailDelivered = true;
+
+            // Enforce server-side quota: atomically record successful submission
+            if (isSupabaseConfigured() && supabase) {
+              try {
+                const { data: recData, error: recError } = await supabase.rpc('record_contact_submission');
+                if (!recError && recData) {
+                  if (recData.allowed === false) {
+                    setQuotaStatus({
+                      isChecking: false,
+                      isLimitReached: true,
+                      currentCount: Number(recData.current_count) || 200,
+                      maxLimit: 200,
+                      resetsAt: recData.resets_at_utc || null,
+                    });
+                  } else {
+                    setQuotaStatus((prev) => ({
+                      ...prev,
+                      currentCount: Number(recData.current_count) || prev.currentCount + 1,
+                    }));
+                  }
+                }
+              } catch (recErr: any) {
+                console.warn('[Contact Form] Atomic quota recording notice:', recErr?.message);
+              }
+            }
           }
         } catch (err: any) {
           console.warn('[Contact Form] Web3Forms dispatch failed:', err?.message);
@@ -434,8 +526,40 @@ export const ContactSection: React.FC = () => {
               </div>
             )}
 
+            {/* Case 4: Monthly Submission Quota (200) Reached */}
+            {quotaStatus.isLimitReached && (
+              <div className="p-6 sm:p-8 bg-butter-200/90 border-2 border-plum-900 rounded-2xl text-center space-y-4">
+                <div className="w-12 h-12 mx-auto bg-butter-300 rounded-full flex items-center justify-center border-2 border-plum-900 shadow-sm">
+                  <AlertTriangle className="w-6 h-6 text-bordeaux-800" />
+                </div>
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-bordeaux-800 text-ivory-100 font-mono text-xs font-bold rounded-full">
+                    <span>MONTHLY CONTACT LIMIT REACHED (200 / 200)</span>
+                  </div>
+                  <h4 className="font-serif text-xl sm:text-2xl font-bold text-bordeaux-800">
+                    Monthly Message Transmission Cap
+                  </h4>
+                  <p className="font-sans text-xs sm:text-sm text-plum-800 leading-relaxed max-w-md mx-auto">
+                    To maintain reliable delivery across free-tier services, this contact form has reached its hard limit of 200 messages for this calendar month. The quota resets automatically at 00:00 UTC on the 1st of next month.
+                  </p>
+                  <p className="font-sans text-xs text-plum-700">
+                    Please send your note directly using your email client:
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <a
+                    href={`mailto:${recipientEmail}?subject=Portfolio%20Inquiry%20from%20Portfolio%20Visitor`}
+                    className="inline-flex items-center space-x-2 px-5 py-2.5 bg-bordeaux-800 text-ivory-100 font-sans font-bold text-xs rounded-xl border-2 border-plum-900 shadow-card hover:bg-bordeaux-900 transition-all active:scale-95"
+                  >
+                    <Mail className="w-4 h-4 text-butter-300" />
+                    <span>Email Siri Directly ({recipientEmail})</span>
+                  </a>
+                </div>
+              </div>
+            )}
+
             {/* Default / Idle / Error Form */}
-            {(submitStatus === 'idle' || submitStatus === 'error') && (
+            {(submitStatus === 'idle' || submitStatus === 'error') && !quotaStatus.isLimitReached && (
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {/* Honeypot field for anti-spam bots */}
                 <input

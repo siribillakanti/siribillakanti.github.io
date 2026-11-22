@@ -11,6 +11,8 @@ import type {
 } from '../../../types/sticker';
 import { STICKER_PAGES } from '../../../types/sticker';
 import { processImageFile } from '../../../utils/imageStorage';
+import { usePortfolio } from '../../../context/PortfolioContext';
+import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
 
 const STORAGE_KEY = 'siri_portfolio_stickers_v1';
 
@@ -70,7 +72,8 @@ function sanitizeSVG(svgString: string): string {
 }
 
 export const StickerEditor: React.FC = () => {
-  const [state, setState] = useState<StickerEditorState>(loadStickerState);
+  const { stickers: contextStickers, updateStickers } = usePortfolio();
+  const [state, setState] = useState<StickerEditorState>(() => contextStickers || loadStickerState());
   const [activePage, setActivePage] = useState<StickerPageId>('homepage');
   const [showLibrary, setShowLibrary] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,10 +86,39 @@ export const StickerEditor: React.FC = () => {
   const currentStickers = state.layouts[activePage] || [];
   const selectedSticker = currentStickers.find(s => s.id === state.selectedStickerId) || null;
 
-  // Persist on change
+  // Sync from context when context updates from Supabase or discard
   useEffect(() => {
+    if (contextStickers) {
+      setState(prev => {
+        if (
+          prev.library === contextStickers.library &&
+          prev.layouts === contextStickers.layouts
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          library: contextStickers.library || [],
+          layouts: contextStickers.layouts || prev.layouts,
+        };
+      });
+    }
+  }, [contextStickers]);
+
+  // Persist on change to context and localStorage
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     saveStickerState(state);
-  }, [state.library, state.layouts]);
+    updateStickers(prev => ({
+      ...prev,
+      library: state.library,
+      layouts: state.layouts,
+    }));
+  }, [state.library, state.layouts, updateStickers]);
 
   const pushUndo = useCallback(() => {
     setState(prev => ({
@@ -152,12 +184,36 @@ export const StickerEditor: React.FC = () => {
         url = await processImageFile(file, 800, 800, 0.9);
       }
 
+      // Try uploading to Supabase Storage if authenticated to keep document lightweight
+      let finalUrl = url;
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const safeName = `stickers/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const { error: uploadError } = await supabase.storage
+              .from('portfolio-assets')
+              .upload(safeName, file, { cacheControl: '31536000', upsert: true });
+            if (!uploadError) {
+              const { data: publicData } = supabase.storage
+                .from('portfolio-assets')
+                .getPublicUrl(safeName);
+              if (publicData?.publicUrl) {
+                finalUrl = publicData.publicUrl;
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const asset: StickerAsset = {
         id: `sticker-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: file.name.replace(/\.[^.]+$/, ''),
-        url,
+        url: finalUrl,
         format,
-        thumbnailUrl: url,
+        thumbnailUrl: finalUrl,
         fileSize: file.size,
         createdAt: new Date().toISOString(),
       };
@@ -357,9 +413,6 @@ export const StickerEditor: React.FC = () => {
           <h3 className="font-serif text-2xl font-bold text-bordeaux-800">
             Visual Customizer
           </h3>
-          <p className="font-sans text-xs text-plum-700 mt-0.5">
-            Upload stickers and decorative images. Drag, resize, and arrange them on each page.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

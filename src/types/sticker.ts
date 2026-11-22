@@ -90,3 +90,19 @@ export const STICKER_PAGES: { id: StickerPageId; label: string }[] = [
   { id: 'certifications', label: 'Certifications' },
   { id: 'contact', label: 'Contact' },
 ];
+
+export const INITIAL_STICKER_STATE: StickerEditorState = {
+  library: [],
+  layouts: {
+    homepage: [],
+    about: [],
+    projects: [],
+    credentials: [],
+    achievements: [],
+    certifications: [],
+    contact: [],
+  },
+  selectedStickerId: null,
+  undoStack: [],
+  redoStack: [],
+};

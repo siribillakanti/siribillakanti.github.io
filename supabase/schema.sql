@@ -358,3 +358,118 @@ CREATE POLICY "Admin manage contact messages"
 -- Minimum SQL Grants for portfolio_messages
 GRANT INSERT ON TABLE public.portfolio_messages TO anon, authenticated;
 GRANT SELECT, UPDATE, DELETE ON TABLE public.portfolio_messages TO authenticated;
+
+-- ====================================================================
+-- 12. CONTACT SUBMISSIONS & MONTHLY QUOTA ENFORCEMENT (200 / MONTH)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.contact_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  month_key TEXT NOT NULL DEFAULT to_char(timezone('utc', now()), 'YYYY-MM'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+  status TEXT NOT NULL DEFAULT 'accepted'
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_month ON public.contact_submissions(month_key);
+
+ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Anonymous and authenticated cannot read other visitors' submissions
+REVOKE ALL ON TABLE public.contact_submissions FROM PUBLIC, anon;
+
+-- Admin can read/manage all contact submissions
+DROP POLICY IF EXISTS "Admin view contact submissions" ON public.contact_submissions;
+CREATE POLICY "Admin view contact submissions"
+  ON public.contact_submissions
+  FOR ALL
+  TO authenticated
+  USING (public.is_portfolio_admin())
+  WITH CHECK (public.is_portfolio_admin());
+
+GRANT SELECT ON TABLE public.contact_submissions TO authenticated;
+
+-- Function 1: Get Current Monthly Quota Status (Read-only, resets at 00:00 UTC on 1st of month)
+CREATE OR REPLACE FUNCTION public.get_contact_quota()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_month TEXT := to_char(timezone('utc', now()), 'YYYY-MM');
+  v_count INTEGER;
+  v_limit CONSTANT INTEGER := 200;
+  v_resets_at TIMESTAMPTZ;
+BEGIN
+  -- Count only successfully accepted submissions for the current UTC calendar month
+  SELECT count(*)::INTEGER INTO v_count
+  FROM public.contact_submissions
+  WHERE month_key = v_month AND status = 'accepted';
+
+  -- Calculate next reset at 00:00 UTC on 1st of next month
+  v_resets_at := date_trunc('month', timezone('utc', now())) + interval '1 month';
+
+  RETURN jsonb_build_object(
+    'allowed', (v_count < v_limit),
+    'current_count', v_count,
+    'max_limit', v_limit,
+    'month_key', v_month,
+    'resets_at_utc', v_resets_at
+  );
+END;
+$$;
+
+-- Function 2: Record Successful Submission with Concurrency Lock (Atomic check & insert)
+CREATE OR REPLACE FUNCTION public.record_contact_submission()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_month TEXT := to_char(timezone('utc', now()), 'YYYY-MM');
+  v_count INTEGER;
+  v_limit CONSTANT INTEGER := 200;
+  v_resets_at TIMESTAMPTZ;
+BEGIN
+  -- Transaction-level advisory lock prevents concurrent race conditions from exceeding 200
+  PERFORM pg_advisory_xact_lock(hashtext('contact_quota_lock_' || v_month));
+
+  SELECT count(*)::INTEGER INTO v_count
+  FROM public.contact_submissions
+  WHERE month_key = v_month AND status = 'accepted';
+
+  v_resets_at := date_trunc('month', timezone('utc', now())) + interval '1 month';
+
+  IF v_count >= v_limit THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'allowed', false,
+      'current_count', v_count,
+      'max_limit', v_limit,
+      'month_key', v_month,
+      'resets_at_utc', v_resets_at,
+      'message', 'Monthly submission quota of 200 messages has been reached for this calendar month.'
+    );
+  END IF;
+
+  INSERT INTO public.contact_submissions (month_key, status)
+  VALUES (v_month, 'accepted');
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'allowed', ((v_count + 1) < v_limit),
+    'current_count', v_count + 1,
+    'max_limit', v_limit,
+    'month_key', v_month,
+    'resets_at_utc', v_resets_at,
+    'message', 'Submission successfully recorded against monthly quota.'
+  );
+END;
+$$;
+
+-- Execution permissions: safe for anon & authenticated via SECURITY DEFINER
+REVOKE ALL ON FUNCTION public.get_contact_quota() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_contact_quota() TO anon, authenticated;
+
+REVOKE ALL ON FUNCTION public.record_contact_submission() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.record_contact_submission() TO anon, authenticated;

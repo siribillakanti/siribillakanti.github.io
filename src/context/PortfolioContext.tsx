@@ -25,6 +25,7 @@ import {
 } from '../data/initialData';
 import { saveMediaItem, getMediaItem, deleteMediaItem } from '../utils/imageStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { StickerEditorState, INITIAL_STICKER_STATE } from '../types/sticker';
 
 interface ToastMessage {
   id: string;
@@ -43,6 +44,8 @@ interface PortfolioContextType {
   branding: SiteBranding;
   sectionsContent: SectionContentConfig;
   detailedDecorations: DetailedDecorationsConfig;
+  stickers: StickerEditorState;
+  updateStickers: (newStickers: StickerEditorState | ((prev: StickerEditorState) => StickerEditorState)) => void;
   selectedProject: Project | null;
   setSelectedProject: (p: Project | null) => void;
   isResumeOpen: boolean;
@@ -273,6 +276,34 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return INITIAL_DETAILED_DECORATIONS;
   });
 
+  // 9. Visual Stickers State
+  const [stickers, setStickers] = useState<StickerEditorState>(() => {
+    try {
+      const saved = localStorage.getItem('siri_portfolio_stickers_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          library: Array.isArray(parsed.library) ? parsed.library : [],
+          layouts: {
+            homepage: Array.isArray(parsed.layouts?.homepage) ? parsed.layouts.homepage : [],
+            about: Array.isArray(parsed.layouts?.about) ? parsed.layouts.about : [],
+            projects: Array.isArray(parsed.layouts?.projects) ? parsed.layouts.projects : [],
+            credentials: Array.isArray(parsed.layouts?.credentials) ? parsed.layouts.credentials : [],
+            achievements: Array.isArray(parsed.layouts?.achievements) ? parsed.layouts.achievements : [],
+            certifications: Array.isArray(parsed.layouts?.certifications) ? parsed.layouts.certifications : [],
+            contact: Array.isArray(parsed.layouts?.contact) ? parsed.layouts.contact : [],
+          },
+          selectedStickerId: null,
+          undoStack: [],
+          redoStack: [],
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_STICKER_STATE;
+  });
+
   const [adminPin, setAdminPin] = useState<string>(() => {
     if (!import.meta.env.DEV) return '';
     return localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || localStorage.getItem(LEGACY_KEYS.ADMIN_PIN) || 'siri2025';
@@ -418,8 +449,31 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
             // 9. Stickers
             if (doc.stickers && typeof doc.stickers === 'object') {
-              localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify(doc.stickers));
-              window.dispatchEvent(new Event('stickersUpdated'));
+              const loadedStickers: StickerEditorState = {
+                library: Array.isArray(doc.stickers.library) ? doc.stickers.library : [],
+                layouts: {
+                  homepage: Array.isArray(doc.stickers.layouts?.homepage) ? doc.stickers.layouts.homepage : [],
+                  about: Array.isArray(doc.stickers.layouts?.about) ? doc.stickers.layouts.about : [],
+                  projects: Array.isArray(doc.stickers.layouts?.projects) ? doc.stickers.layouts.projects : [],
+                  credentials: Array.isArray(doc.stickers.layouts?.credentials) ? doc.stickers.layouts.credentials : [],
+                  achievements: Array.isArray(doc.stickers.layouts?.achievements) ? doc.stickers.layouts.achievements : [],
+                  certifications: Array.isArray(doc.stickers.layouts?.certifications) ? doc.stickers.layouts.certifications : [],
+                  contact: Array.isArray(doc.stickers.layouts?.contact) ? doc.stickers.layouts.contact : [],
+                },
+                selectedStickerId: null,
+                undoStack: [],
+                redoStack: [],
+              };
+              setStickers(loadedStickers);
+              try {
+                localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
+                  library: loadedStickers.library,
+                  layouts: loadedStickers.layouts,
+                }));
+                window.dispatchEvent(new Event('stickersUpdated'));
+              } catch (e) {
+                // ignore
+              }
             }
 
             // 10. Last saved timestamp
@@ -537,14 +591,6 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsSaving(true);
 
     try {
-      let stickersData = null;
-      try {
-        const savedStickers = localStorage.getItem('siri_portfolio_stickers_v1');
-        if (savedStickers) stickersData = JSON.parse(savedStickers);
-      } catch (e) {
-        // ignore
-      }
-
       // 1. Always save locally first so work is never lost
       try {
         localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
@@ -555,6 +601,11 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         localStorage.setItem(STORAGE_KEYS.BRANDING, JSON.stringify(branding));
         localStorage.setItem(STORAGE_KEYS.SECTIONS, JSON.stringify(sectionsContent));
         localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(detailedDecorations));
+        localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
+          library: stickers.library || [],
+          layouts: stickers.layouts || {},
+        }));
+        window.dispatchEvent(new Event('stickersUpdated'));
 
         const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setLastSavedTimestamp(now);
@@ -575,7 +626,10 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         skills,
         certifications,
         achievements,
-        stickers: stickersData,
+        stickers: {
+          library: stickers.library || [],
+          layouts: stickers.layouts || {},
+        },
       };
 
       // 3. If Supabase is active, verify authenticated session and UPSERT
@@ -611,6 +665,23 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             );
             setHasUnsavedChanges(true);
             return false;
+          }
+
+          // Also synchronize dedicated portfolio_stickers rows per page
+          try {
+            const pageEntries = Object.entries(stickers.layouts || {});
+            for (const [pageId, placedList] of pageEntries) {
+              await supabase.from('portfolio_stickers').upsert(
+                {
+                  page_id: pageId,
+                  stickers: placedList || [],
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'page_id' }
+              );
+            }
+          } catch (stkSyncErr) {
+            console.warn('[PortfolioContext] Per-page portfolio_stickers sync notice:', stkSyncErr);
           }
 
           // Successfully published live!
@@ -660,6 +731,30 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (savedBranding) setBranding(JSON.parse(savedBranding));
     if (savedSections) setSectionsContent(JSON.parse(savedSections));
     if (savedDecorations) setDetailedDecorations(JSON.parse(savedDecorations));
+
+    const savedStickers = localStorage.getItem('siri_portfolio_stickers_v1');
+    if (savedStickers) {
+      try {
+        const parsed = JSON.parse(savedStickers);
+        setStickers({
+          library: Array.isArray(parsed.library) ? parsed.library : [],
+          layouts: {
+            homepage: Array.isArray(parsed.layouts?.homepage) ? parsed.layouts.homepage : [],
+            about: Array.isArray(parsed.layouts?.about) ? parsed.layouts.about : [],
+            projects: Array.isArray(parsed.layouts?.projects) ? parsed.layouts.projects : [],
+            credentials: Array.isArray(parsed.layouts?.credentials) ? parsed.layouts.credentials : [],
+            achievements: Array.isArray(parsed.layouts?.achievements) ? parsed.layouts.achievements : [],
+            certifications: Array.isArray(parsed.layouts?.certifications) ? parsed.layouts.certifications : [],
+            contact: Array.isArray(parsed.layouts?.contact) ? parsed.layouts.contact : [],
+          },
+          selectedStickerId: null,
+          undoStack: [],
+          redoStack: [],
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
 
     setHasUnsavedChanges(false);
     showToast('Unsaved Edits Discarded', 'Restored previous saved version.', 'info');
@@ -742,6 +837,26 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Detailed Decorations Updates
   const updateDetailedDecorations = (newDec: DetailedDecorationsConfig) => {
     setDetailedDecorations(newDec);
+    setHasUnsavedChanges(true);
+  };
+
+  // Visual Stickers Updates
+  const updateStickers = (
+    newStickers: StickerEditorState | ((prev: StickerEditorState) => StickerEditorState)
+  ) => {
+    setStickers((prev) => {
+      const resolved = typeof newStickers === 'function' ? newStickers(prev) : newStickers;
+      try {
+        localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
+          library: resolved.library,
+          layouts: resolved.layouts,
+        }));
+        window.dispatchEvent(new Event('stickersUpdated'));
+      } catch (e) {
+        console.warn('[PortfolioContext] Failed to cache stickers locally:', e);
+      }
+      return resolved;
+    });
     setHasUnsavedChanges(true);
   };
 
@@ -928,15 +1043,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Export & Import
   const exportPortfolioData = (): string => {
-    let stickersData = null;
-    try {
-      const savedStickers = localStorage.getItem('siri_portfolio_stickers_v1');
-      if (savedStickers) stickersData = JSON.parse(savedStickers);
-    } catch (e) {
-      // ignore
-    }
-
-    const data = {
+    const data: PortfolioDocument = {
       version: 4,
       exportDate: new Date().toISOString(),
       branding,
@@ -947,7 +1054,10 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       skills,
       certifications,
       achievements,
-      stickers: stickersData,
+      stickers: {
+        library: stickers.library || [],
+        layouts: stickers.layouts || {},
+      },
     };
     return JSON.stringify(data, null, 2);
   };
@@ -1041,8 +1151,27 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // 3. Restore stickers if present
       if (data.stickers && typeof data.stickers === 'object') {
+        const importedStickers: StickerEditorState = {
+          library: Array.isArray(data.stickers.library) ? data.stickers.library : [],
+          layouts: {
+            homepage: Array.isArray(data.stickers.layouts?.homepage) ? data.stickers.layouts.homepage : [],
+            about: Array.isArray(data.stickers.layouts?.about) ? data.stickers.layouts.about : [],
+            projects: Array.isArray(data.stickers.layouts?.projects) ? data.stickers.layouts.projects : [],
+            credentials: Array.isArray(data.stickers.layouts?.credentials) ? data.stickers.layouts.credentials : [],
+            achievements: Array.isArray(data.stickers.layouts?.achievements) ? data.stickers.layouts.achievements : [],
+            certifications: Array.isArray(data.stickers.layouts?.certifications) ? data.stickers.layouts.certifications : [],
+            contact: Array.isArray(data.stickers.layouts?.contact) ? data.stickers.layouts.contact : [],
+          },
+          selectedStickerId: null,
+          undoStack: [],
+          redoStack: [],
+        };
+        setStickers(importedStickers);
         try {
-          localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify(data.stickers));
+          localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
+            library: importedStickers.library,
+            layouts: importedStickers.layouts,
+          }));
           window.dispatchEvent(new Event('stickersUpdated'));
         } catch (e) {
           console.warn('Sticker restore error:', e);
@@ -1067,6 +1196,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSkills(INITIAL_SKILLS);
     setCertifications(INITIAL_CERTIFICATIONS);
     setAchievements(INITIAL_ACHIEVEMENTS);
+    setStickers(INITIAL_STICKER_STATE);
 
     localStorage.removeItem(STORAGE_KEYS.BRANDING);
     localStorage.removeItem(STORAGE_KEYS.PROFILE);
@@ -1076,6 +1206,8 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.removeItem(STORAGE_KEYS.SKILLS);
     localStorage.removeItem(STORAGE_KEYS.CERTS);
     localStorage.removeItem(STORAGE_KEYS.ACHIEVEMENTS);
+    localStorage.removeItem('siri_portfolio_stickers_v1');
+    window.dispatchEvent(new Event('stickersUpdated'));
 
     setHasUnsavedChanges(false);
     showToast('Reset to Defaults', 'Original portfolio template restored.', 'info');
@@ -1093,6 +1225,8 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         branding,
         sectionsContent,
         detailedDecorations,
+        stickers,
+        updateStickers,
         selectedProject,
         setSelectedProject,
         isResumeOpen,

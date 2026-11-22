@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { PlacedSticker, StickerPageId } from '../../types/sticker';
+import { usePortfolio } from '../../context/PortfolioContext';
 
 const STORAGE_KEY = 'siri_portfolio_stickers_v1';
 
@@ -11,10 +12,38 @@ interface StickerLayerProps {
 }
 
 export const StickerLayer: React.FC<StickerLayerProps> = ({ pageId, mouseX = 0, mouseY = 0 }) => {
-  const [stickers, setStickers] = useState<PlacedSticker[]>([]);
+  const { stickers: contextStickers } = usePortfolio();
 
+  const [stickers, setStickers] = useState<PlacedSticker[]>(() => {
+    // 1. Prefer context state
+    if (contextStickers?.layouts && Array.isArray(contextStickers.layouts[pageId])) {
+      return contextStickers.layouts[pageId].filter((s: PlacedSticker) => s.visible);
+    }
+    // 2. Fallback to localStorage cache
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.layouts && Array.isArray(parsed.layouts[pageId])) {
+          return parsed.layouts[pageId].filter((s: PlacedSticker) => s.visible);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  // Re-sync whenever context stickers update
   useEffect(() => {
-    const load = () => {
+    if (contextStickers?.layouts && Array.isArray(contextStickers.layouts[pageId])) {
+      setStickers(contextStickers.layouts[pageId].filter((s: PlacedSticker) => s.visible));
+    }
+  }, [contextStickers, pageId]);
+
+  // Also listen for storage events across tabs or local dispatch
+  useEffect(() => {
+    const handleStorage = () => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -23,14 +52,11 @@ export const StickerLayer: React.FC<StickerLayerProps> = ({ pageId, mouseX = 0, 
             setStickers(parsed.layouts[pageId].filter((s: PlacedSticker) => s.visible));
           }
         }
-      } catch (e) {
+      } catch {
         // Fallback gracefully
       }
     };
 
-    load();
-    // Listen for storage events across tabs or local dispatch
-    const handleStorage = () => load();
     window.addEventListener('storage', handleStorage);
     window.addEventListener('stickersUpdated', handleStorage);
     return () => {
@@ -42,7 +68,7 @@ export const StickerLayer: React.FC<StickerLayerProps> = ({ pageId, mouseX = 0, 
   if (stickers.length === 0) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-15">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
       {stickers.map((s) => {
         const floatAnim =
           s.animation === 'float'
@@ -86,7 +112,7 @@ export const StickerLayer: React.FC<StickerLayerProps> = ({ pageId, mouseX = 0, 
               alt=""
               className="w-full h-full object-contain filter drop-shadow-sm pointer-events-none"
               draggable={false}
-              loading="lazy"
+              loading="eager"
             />
           </motion.div>
         );
