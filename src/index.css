@@ -84,13 +84,33 @@
   }
 }
 
-/* Print Styles for Resume */
+/* Print Styles for Resume & Portfolio */
 @media print {
+  @page {
+    margin: 1.5cm;
+    size: auto;
+  }
   body {
     background: white !important;
-    color: black !important;
+    color: #1a050d !important;
   }
-  header, nav, button, footer, .no-print {
+  header, nav, button, footer, .no-print, [data-sticker], .sticker-layer {
     display: none !important;
+  }
+  /* Ensure print document sheet expands cleanly without modal clipping or backdrops */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .max-h-\[94vh\] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
   }
 }

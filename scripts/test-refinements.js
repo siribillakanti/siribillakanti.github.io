@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 console.log('====================================================');
-console.log('   SIRI PORTFOLIO — REFINEMENT & QUOTA TEST SUITE   ');
+console.log('   SIRI PORTFOLIO — REFINEMENT & REGRESSION SUITE   ');
 console.log('====================================================\n');
 
 let totalPassed = 0;
@@ -24,7 +24,6 @@ function assert(condition, message) {
 // ==========================================
 console.log('SUITE 1: Verifying Sticker Data Flow & Context Binding...');
 
-// Check PortfolioContext exports stickers & updateStickers
 const contextCode = fs.readFileSync('src/context/PortfolioContext.tsx', 'utf8');
 assert(contextCode.includes('stickers: StickerEditorState;'), 'PortfolioContext declares stickers state in context type');
 assert(contextCode.includes('updateStickers:'), 'PortfolioContext exports updateStickers mutation function');
@@ -52,77 +51,84 @@ assert(decorationsCode.includes('<ScrapbookStickerStudio />'), 'DecorationsEdito
 
 
 // ==========================================
-// TEST SUITE 2: MONTHLY SUBMISSION QUOTA (200 / MONTH)
+// TEST SUITE 2: CLEAN DIRECT CONTACT SECTION
 // ==========================================
-console.log('\nSUITE 2: Verifying Monthly Quota (200 / month) Requirements...');
+console.log('\nSUITE 2: Verifying Clean Direct Contact Channels...');
 
-const schemaCode = fs.readFileSync('supabase/schema.sql', 'utf8');
 const contactCode = fs.readFileSync('src/components/Contact/ContactSection.tsx', 'utf8');
 
-// Check automatic monthly reset at 00:00 UTC on 1st of month
+// Verify Heading & Description
 assert(
-  schemaCode.includes("to_char(timezone('utc', now()), 'YYYY-MM')"),
-  'Server uses to_char(timezone(\'utc\', now()), \'YYYY-MM\') to reset automatically at 00:00 UTC on 1st of month'
+  contactCode.includes("Let's stay connected."),
+  'ContactSection renders heading: "Let\'s stay connected."'
+);
+assert(
+  contactCode.includes("Have an opportunity, a project idea, or just want to say hello? I'd love to hear from you."),
+  'ContactSection renders approved description text'
 );
 
-// Check count of ONLY accepted submissions
+// Verify Three Direct Channels
 assert(
-  schemaCode.includes("status = 'accepted'"),
-  'Only successfully accepted submissions are counted against quota'
+  contactCode.includes('mailto:${recipientEmail}') || contactCode.includes('mailto:siri.billakanti1@gmail.com'),
+  'Direct email channel link (mailto) is present'
 );
 assert(
-  contactCode.includes("res.ok && data.success === true") &&
-  contactCode.includes("record_contact_submission"),
-  'Frontend calls record_contact_submission ONLY after Web3Forms confirms success === true'
+  contactCode.includes('linkedin.com/in/siri-billakanti-0b798a384'),
+  'Direct LinkedIn channel link is present'
 );
-
-// Check server-side advisory transaction lock for concurrency safety
 assert(
-  schemaCode.includes('pg_advisory_xact_lock'),
-  'Advisory transaction lock (pg_advisory_xact_lock) prevents race conditions exceeding 200'
+  contactCode.includes('github.com/siribillakanti'),
+  'Direct GitHub channel link is present'
 );
 
-// Check hard limit of 200 in PostgreSQL function
+// Verify Quick-Copy Email Feature
 assert(
-  schemaCode.includes('v_limit CONSTANT INTEGER := 200;'),
-  'PostgreSQL function defines hard limit of 200 submissions'
+  contactCode.includes('handleCopyEmail'),
+  'One-click email copy functionality is present'
 );
 
-// Check UI block and friendly message when quota is reached
+// Verify complete elimination of Web3Forms, quotas, honeypots, and submission forms
 assert(
-  contactCode.includes('quotaStatus.isLimitReached'),
-  'ContactSection checks quotaStatus.isLimitReached before allowing submission'
+  !contactCode.includes('web3forms'),
+  'Web3Forms API references completely eliminated from ContactSection'
 );
 assert(
-  contactCode.includes('MONTHLY CONTACT LIMIT REACHED (200 / 200)'),
-  'ContactSection renders friendly notice when monthly limit is reached'
+  !contactCode.includes('quotaStatus'),
+  'Quota state and indicators completely eliminated from ContactSection'
 );
 assert(
-  contactCode.includes('mailto:${recipientEmail}'),
-  'Direct mailto fallback is provided when monthly submission limit is reached'
+  !contactCode.includes('botcheck'),
+  'Honeypot fields completely eliminated from ContactSection'
+);
+assert(
+  !contactCode.includes('claim_contact_slot'),
+  'Slot claim RPCs completely eliminated from ContactSection'
+);
+assert(
+  !contactCode.includes('<form'),
+  'HTML submission form completely eliminated in favor of direct communication channels'
 );
 
 
 // ==========================================
-// TEST SUITE 3: REFINEMENT SECURITY VERIFICATION
+// TEST SUITE 3: SECURITY & SECRETS AUDIT
 // ==========================================
 console.log('\nSUITE 3: Verifying Security Posture...');
 
 // Verify no service-role key or private secrets
 assert(
   !contactCode.includes('service_role'),
-  'Contact form does not expose or import service-role key'
+  'Contact section does not expose or import service-role key'
 );
 assert(
   !contextCode.includes('service_role'),
   'PortfolioContext does not expose or import service-role key'
 );
 
-// Verify SECURITY DEFINER functions have safe search_path
+const schemaCode = fs.readFileSync('supabase/schema.sql', 'utf8');
 assert(
-  schemaCode.includes("CREATE OR REPLACE FUNCTION public.get_contact_quota()\nRETURNS jsonb\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = ''") ||
   schemaCode.includes("SET search_path = ''"),
-  'All quota functions enforce safe search_path = \'\''
+  'All SECURITY DEFINER functions enforce safe search_path = \'\''
 );
 
 console.log('\n====================================================');

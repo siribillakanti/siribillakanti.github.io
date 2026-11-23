@@ -51,7 +51,7 @@ export const ResumeModal: React.FC = () => {
           className="relative w-full max-w-3xl bg-ivory-50 border-3 border-plum-900 rounded-card-lg shadow-card-xl overflow-hidden max-h-[94vh] flex flex-col"
         >
           {/* Header Action Bar */}
-          <div className="flex items-center justify-between px-6 py-3.5 bg-bordeaux-800 text-ivory-100 border-b-2 border-plum-900">
+          <div className="flex items-center justify-between px-6 py-3.5 bg-bordeaux-800 text-ivory-100 border-b-2 border-plum-900 no-print">
             <div className="flex items-center space-x-2">
               <span className="font-mono text-xs font-bold bg-butter-300 text-plum-900 px-2 py-0.5 rounded">
                 RESUME DOSSIER
