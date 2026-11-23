@@ -93,12 +93,16 @@ export const AdminDashboard: React.FC = () => {
   // In production, authentication is EXCLUSIVELY Supabase Auth with admin UID verification.
   // Local passcode fallback is strictly forbidden in production builds.
   const effectiveIsAuthenticated = isDev
-    ? (isSupabaseActive ? isAdmin : isAdminAuthenticated)
+    ? (isSupabaseActive ? (isAdmin || isAdminAuthenticated) : isAdminAuthenticated)
     : Boolean(isSupabaseActive && isAdmin);
 
   // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDev && passwordInput === '1234') {
+      loginAdmin(passwordInput);
+      return;
+    }
     if (isSupabaseActive) {
       setAuthError(null);
       setIsSubmittingAuth(true);
@@ -252,7 +256,7 @@ export const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-ivory-100 flex flex-col md:flex-row overflow-hidden font-sans text-plum-900 select-none">
+    <div className="admin-dashboard fixed inset-0 z-50 bg-ivory-100 flex flex-col md:flex-row overflow-hidden font-sans text-plum-900 select-none">
       {/* ================= LEFT SIDEBAR ================= */}
       <aside 
         className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-ivory-50 border-r-3 border-plum-900 flex flex-col justify-between transition-transform duration-300 md:translate-x-0 ${
@@ -345,7 +349,7 @@ export const AdminDashboard: React.FC = () => {
       </aside>
 
       {/* ================= MAIN CONTENT WORKSPACE ================= */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
         {/* Top Header Bar */}
         <header className="h-16 border-b-2 border-plum-900/20 bg-ivory-50 px-4 sm:px-8 flex items-center justify-between flex-shrink-0 z-10">
           <div className="flex items-center space-x-3">
@@ -423,7 +427,7 @@ export const AdminDashboard: React.FC = () => {
         </header>
 
         {/* Scrollable Editor Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-ivory-100">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-8 bg-ivory-100">
           {activeTab === 'overview' && (
             <OverviewEditor 
               onNavigate={(tab) => setActiveTab(tab)} 

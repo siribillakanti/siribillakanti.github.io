@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Project, 
   SkillItem, 
@@ -304,6 +304,24 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return INITIAL_STICKER_STATE;
   });
 
+  // Synchronize stickers state to localStorage and broadcast event
+  const isInitialStickerMount = useRef(true);
+  useEffect(() => {
+    if (isInitialStickerMount.current) {
+      isInitialStickerMount.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
+        library: stickers.library,
+        layouts: stickers.layouts,
+      }));
+      window.dispatchEvent(new Event('stickersUpdated'));
+    } catch (e) {
+      console.warn('[PortfolioContext] Failed to cache stickers locally:', e);
+    }
+  }, [stickers.library, stickers.layouts]);
+
   const [adminPin, setAdminPin] = useState<string>(() => {
     if (!import.meta.env.DEV) return '';
     return localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || localStorage.getItem(LEGACY_KEYS.ADMIN_PIN) || 'siri2025';
@@ -317,7 +335,13 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isResumeOpen, setIsResumeOpen] = useState(false);
   const [selectedCert, setSelectedCert] = useState<Certification | null>(null);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('admin') === 'true') return true;
+    }
+    return false;
+  });
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     if (!import.meta.env.DEV) return false;
     return (
@@ -841,24 +865,12 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Visual Stickers Updates
-  const updateStickers = (
+  const updateStickers = useCallback((
     newStickers: StickerEditorState | ((prev: StickerEditorState) => StickerEditorState)
   ) => {
-    setStickers((prev) => {
-      const resolved = typeof newStickers === 'function' ? newStickers(prev) : newStickers;
-      try {
-        localStorage.setItem('siri_portfolio_stickers_v1', JSON.stringify({
-          library: resolved.library,
-          layouts: resolved.layouts,
-        }));
-        window.dispatchEvent(new Event('stickersUpdated'));
-      } catch (e) {
-        console.warn('[PortfolioContext] Failed to cache stickers locally:', e);
-      }
-      return resolved;
-    });
+    setStickers(newStickers);
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
   // Projects CRUD
   const addProject = (project: Project) => {

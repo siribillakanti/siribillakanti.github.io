@@ -85,24 +85,22 @@ export const StickerEditor: React.FC = () => {
 
   const currentStickers = state.layouts[activePage] || [];
   const selectedSticker = currentStickers.find(s => s.id === state.selectedStickerId) || null;
+  const lastDispatchedLibrary = useRef<StickerAsset[]>(state.library);
+  const lastDispatchedLayouts = useRef<Record<StickerPageId, PlacedSticker[]>>(state.layouts);
 
   // Sync from context when context updates from Supabase or discard
   useEffect(() => {
-    if (contextStickers) {
-      setState(prev => {
-        if (
-          prev.library === contextStickers.library &&
-          prev.layouts === contextStickers.layouts
-        ) {
-          return prev;
-        }
-        return {
-          ...prev,
-          library: contextStickers.library || [],
-          layouts: contextStickers.layouts || prev.layouts,
-        };
-      });
-    }
+    if (!contextStickers) return;
+    const isOurEcho =
+      contextStickers.library === lastDispatchedLibrary.current &&
+      contextStickers.layouts === lastDispatchedLayouts.current;
+    if (isOurEcho) return;
+
+    setState(prev => ({
+      ...prev,
+      library: contextStickers.library || [],
+      layouts: contextStickers.layouts || prev.layouts,
+    }));
   }, [contextStickers]);
 
   // Persist on change to context and localStorage
@@ -112,7 +110,8 @@ export const StickerEditor: React.FC = () => {
       isInitialMount.current = false;
       return;
     }
-    saveStickerState(state);
+    lastDispatchedLibrary.current = state.library;
+    lastDispatchedLayouts.current = state.layouts;
     updateStickers(prev => ({
       ...prev,
       library: state.library,
@@ -364,15 +363,21 @@ export const StickerEditor: React.FC = () => {
     
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    
+    const canvasX = e.clientX - rect.left;
+    const canvasY = e.clientY - rect.top;
+    const stickerX = (sticker.xPercent / 100) * rect.width;
+    const stickerY = (sticker.yPercent / 100) * rect.height;
+
     setIsDragging(true);
     dragStickerRef.current = stickerId;
     setDragOffset({
-      x: e.clientX - (sticker.xPercent / 100 * rect.width),
-      y: e.clientY - (sticker.yPercent / 100 * rect.height),
+      x: canvasX - stickerX,
+      y: canvasY - stickerY,
     });
 
-    setState(prev => ({ ...prev, selectedStickerId: stickerId }));
+    if (state.selectedStickerId !== stickerId) {
+      setState(prev => ({ ...prev, selectedStickerId: stickerId }));
+    }
   };
 
   useEffect(() => {
@@ -381,8 +386,11 @@ export const StickerEditor: React.FC = () => {
     const handleMove = (e: MouseEvent) => {
       if (!canvasRef.current || !dragStickerRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const x = ((e.clientX - dragOffset.x) / rect.width) * 100;
-      const y = ((e.clientY - dragOffset.y) / rect.height) * 100;
+      if (rect.width === 0 || rect.height === 0) return;
+      const currentCanvasX = e.clientX - rect.left;
+      const currentCanvasY = e.clientY - rect.top;
+      const x = ((currentCanvasX - dragOffset.x) / rect.width) * 100;
+      const y = ((currentCanvasY - dragOffset.y) / rect.height) * 100;
       updateSticker(dragStickerRef.current, {
         xPercent: Math.max(-10, Math.min(110, x)),
         yPercent: Math.max(-10, Math.min(110, y)),
@@ -543,8 +551,7 @@ export const StickerEditor: React.FC = () => {
         <div className="flex-1 space-y-4">
           <div
             ref={canvasRef}
-            className="relative w-full bg-ivory-100 border-2 border-dashed border-plum-900/30 rounded-card-lg overflow-hidden"
-            style={{ minHeight: 420, aspectRatio: '16/9' }}
+            className="relative w-full h-[420px] sm:h-[480px] bg-ivory-100 border-2 border-dashed border-plum-900/30 rounded-card-lg overflow-hidden select-none"
             onClick={() => setState(prev => ({ ...prev, selectedStickerId: null }))}
           >
             {/* Grid pattern */}
@@ -565,7 +572,7 @@ export const StickerEditor: React.FC = () => {
             {currentStickers.map(sticker => (
               <div
                 key={sticker.id}
-                className={`absolute cursor-move select-none transition-shadow ${
+                className={`absolute cursor-move select-none ${
                   state.selectedStickerId === sticker.id
                     ? 'ring-2 ring-bordeaux-800 ring-offset-2 shadow-lg'
                     : 'hover:ring-1 hover:ring-plum-900/40'
@@ -678,7 +685,9 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="range" min={-10} max={110} step={0.5}
                     value={selectedSticker.xPercent}
-                    onChange={(e) => { pushUndo(); updateSticker(selectedSticker.id, { xPercent: parseFloat(e.target.value) }); }}
+                    onPointerDown={pushUndo}
+                    onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
+                    onChange={(e) => updateSticker(selectedSticker.id, { xPercent: parseFloat(e.target.value) })}
                     className="w-full accent-bordeaux-800"
                   />
                   <span className="font-mono text-[10px] text-plum-500">{selectedSticker.xPercent.toFixed(1)}%</span>
@@ -690,7 +699,9 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="range" min={-10} max={110} step={0.5}
                     value={selectedSticker.yPercent}
-                    onChange={(e) => { pushUndo(); updateSticker(selectedSticker.id, { yPercent: parseFloat(e.target.value) }); }}
+                    onPointerDown={pushUndo}
+                    onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
+                    onChange={(e) => updateSticker(selectedSticker.id, { yPercent: parseFloat(e.target.value) })}
                     className="w-full accent-bordeaux-800"
                   />
                   <span className="font-mono text-[10px] text-plum-500">{selectedSticker.yPercent.toFixed(1)}%</span>
@@ -702,7 +713,9 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="range" min={0.1} max={3} step={0.05}
                     value={selectedSticker.scale}
-                    onChange={(e) => { pushUndo(); updateSticker(selectedSticker.id, { scale: parseFloat(e.target.value) }); }}
+                    onPointerDown={pushUndo}
+                    onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
+                    onChange={(e) => updateSticker(selectedSticker.id, { scale: parseFloat(e.target.value) })}
                     className="w-full accent-bordeaux-800"
                   />
                   <span className="font-mono text-[10px] text-plum-500">{selectedSticker.scale.toFixed(2)}×</span>
@@ -714,7 +727,9 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="range" min={-180} max={180} step={1}
                     value={selectedSticker.rotation}
-                    onChange={(e) => { pushUndo(); updateSticker(selectedSticker.id, { rotation: parseFloat(e.target.value) }); }}
+                    onPointerDown={pushUndo}
+                    onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
+                    onChange={(e) => updateSticker(selectedSticker.id, { rotation: parseFloat(e.target.value) })}
                     className="w-full accent-bordeaux-800"
                   />
                   <span className="font-mono text-[10px] text-plum-500">{selectedSticker.rotation}°</span>
@@ -727,7 +742,10 @@ export const StickerEditor: React.FC = () => {
                   <label className="font-mono text-[11px] font-bold text-plum-700">Animation</label>
                   <select
                     value={selectedSticker.animation}
-                    onChange={(e) => updateSticker(selectedSticker.id, { animation: e.target.value as PlacedSticker['animation'] })}
+                    onChange={(e) => {
+                      pushUndo();
+                      updateSticker(selectedSticker.id, { animation: e.target.value as PlacedSticker['animation'] });
+                    }}
                     className="w-full px-2 py-1.5 bg-ivory-100 border border-plum-900/30 rounded-lg font-mono text-xs"
                   >
                     <option value="none">None</option>
@@ -742,6 +760,8 @@ export const StickerEditor: React.FC = () => {
                     <input
                       type="range" min={2} max={12} step={0.5}
                       value={selectedSticker.floatSpeed}
+                      onPointerDown={pushUndo}
+                      onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
                       onChange={(e) => updateSticker(selectedSticker.id, { floatSpeed: parseFloat(e.target.value) })}
                       className="w-full accent-bordeaux-800"
                     />
@@ -755,6 +775,8 @@ export const StickerEditor: React.FC = () => {
                     <input
                       type="range" min={2} max={30} step={1}
                       value={selectedSticker.parallaxFactor}
+                      onPointerDown={pushUndo}
+                      onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
                       onChange={(e) => updateSticker(selectedSticker.id, { parallaxFactor: parseFloat(e.target.value) })}
                       className="w-full accent-bordeaux-800"
                     />
@@ -767,6 +789,8 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="range" min={0.1} max={1} step={0.05}
                     value={selectedSticker.opacity}
+                    onPointerDown={pushUndo}
+                    onKeyDown={(e) => { if (e.key.startsWith('Arrow')) pushUndo(); }}
                     onChange={(e) => updateSticker(selectedSticker.id, { opacity: parseFloat(e.target.value) })}
                     className="w-full accent-bordeaux-800"
                   />
@@ -781,6 +805,7 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="number" min={20} max={400} step={5}
                     value={selectedSticker.baseWidth}
+                    onFocus={pushUndo}
                     onChange={(e) => updateSticker(selectedSticker.id, { baseWidth: parseInt(e.target.value) || 80 })}
                     className="w-full px-2 py-1.5 bg-ivory-100 border border-plum-900/30 rounded-lg font-mono text-xs"
                   />
@@ -790,6 +815,7 @@ export const StickerEditor: React.FC = () => {
                   <input
                     type="number" min={20} max={400} step={5}
                     value={selectedSticker.baseHeight}
+                    onFocus={pushUndo}
                     onChange={(e) => updateSticker(selectedSticker.id, { baseHeight: parseInt(e.target.value) || 80 })}
                     className="w-full px-2 py-1.5 bg-ivory-100 border border-plum-900/30 rounded-lg font-mono text-xs"
                   />

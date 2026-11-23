@@ -276,8 +276,7 @@ export const ScrapbookStickerStudio: React.FC = () => {
 
             {/* Scrapbook Canvas Surface */}
             <div
-              className="relative w-full rounded-2xl border-2 border-dashed border-plum-900/30 bg-ivory-100 overflow-hidden shadow-inner flex items-center justify-center"
-              style={{ minHeight: 340, aspectRatio: '16/9' }}
+              className="relative w-full h-[360px] sm:h-[400px] rounded-2xl border-2 border-dashed border-plum-900/30 bg-ivory-100 overflow-hidden shadow-inner flex items-center justify-center select-none"
               onClick={() => setSelectedStickerId(null)}
             >
               {/* Paper Desk Texture & Stitched Borders */}
@@ -318,7 +317,7 @@ export const ScrapbookStickerStudio: React.FC = () => {
                       e.stopPropagation();
                       setSelectedStickerId(sticker.id);
                     }}
-                    className={`absolute cursor-pointer transition-transform select-none ${
+                    className={`absolute cursor-pointer select-none ${
                       isSelected
                         ? 'ring-2 ring-bordeaux-800 ring-offset-2 ring-offset-ivory-100 shadow-md'
                         : 'hover:scale-105'
@@ -350,7 +349,7 @@ export const ScrapbookStickerStudio: React.FC = () => {
 
             {/* Selected Sticker Controls Bar */}
             {selectedSticker && (
-              <div className="p-3 bg-ivory-200/70 border border-plum-900/20 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+              <div className="w-full max-w-full p-3 bg-ivory-200/70 border border-plum-900/20 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs font-mono overflow-hidden">
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-bordeaux-800 truncate max-w-[130px]">
                     Sticker Active

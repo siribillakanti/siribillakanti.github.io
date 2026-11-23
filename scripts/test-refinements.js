@@ -49,6 +49,19 @@ assert(studioExists, 'ScrapbookStickerStudio component file exists');
 const decorationsCode = fs.readFileSync('src/components/Admin/editors/DecorationsEditor.tsx', 'utf8');
 assert(decorationsCode.includes('<ScrapbookStickerStudio />'), 'DecorationsEditor mounts ScrapbookStickerStudio under Illustrations & Garden');
 
+// Check Geometry Stabilization & Scrollbar Defenses
+const studioCode = fs.readFileSync('src/components/Admin/editors/ScrapbookStickerStudio.tsx', 'utf8');
+assert(!studioCode.includes("aspectRatio: '16/9'"), 'ScrapbookStickerStudio canvas eliminates conflicting aspectRatio property');
+assert(studioCode.includes('h-[360px] sm:h-[400px]'), 'ScrapbookStickerStudio canvas uses stable responsive height');
+assert(!studioCode.includes('transition-transform'), 'ScrapbookStickerStudio placed stickers eliminate transition-transform during slider updates');
+
+const adminCode = fs.readFileSync('src/components/Admin/AdminDashboard.tsx', 'utf8');
+assert(adminCode.includes('admin-dashboard fixed inset-0'), 'AdminDashboard root container includes admin-dashboard class');
+assert(adminCode.includes('overflow-x-hidden overscroll-contain'), 'AdminDashboard main container enforces overflow-x-hidden and overscroll-contain');
+
+const cssCode = fs.readFileSync('src/index.css', 'utf8');
+assert(cssCode.includes('scrollbar-gutter: stable;'), 'src/index.css enforces scrollbar-gutter: stable on .admin-dashboard main');
+
 
 // ==========================================
 // TEST SUITE 2: CLEAN DIRECT CONTACT SECTION

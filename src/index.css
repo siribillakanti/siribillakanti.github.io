@@ -75,6 +75,12 @@
   }
 }
 
+/* Admin dashboard layout & scrollbar stabilization */
+.admin-dashboard main {
+  scrollbar-gutter: stable;
+  scroll-behavior: auto !important;
+}
+
 /* Respect reduced motion: restore native cursor */
 @media (prefers-reduced-motion: reduce) {
   *,
