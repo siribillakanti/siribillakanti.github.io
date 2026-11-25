@@ -79,6 +79,7 @@ export const AdminDashboard: React.FC = () => {
 
   const { user, isAdmin, isSupabaseActive, signInWithPassword, signOut: supabaseSignOut } = useAuth();
   const [activeTab, setActiveTab] = useState<CMSTab>('overview');
+  const [stickerStudioSubTab, setStickerStudioSubTab] = useState<'visual-customizer' | 'botanical-garden'>('visual-customizer');
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
@@ -156,8 +157,7 @@ export const AdminDashboard: React.FC = () => {
     { id: 'about', label: 'About Me Page', icon: BookOpen },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'sections', label: 'Section Headings', icon: Type },
-    { id: 'decorations', label: 'Illustrations & Garden', icon: Sliders },
-    { id: 'stickers', label: 'Visual Customizer', icon: Palette },
+    { id: 'stickers', label: 'Sticker Studio', icon: Palette },
     { id: 'branding', label: 'Branding & Mark', icon: Globe },
     { id: 'skills', label: 'Skills & Tech', icon: Sparkles },
     { id: 'education', label: 'Education & Exp', icon: GraduationCap },
@@ -438,8 +438,44 @@ export const AdminDashboard: React.FC = () => {
           {activeTab === 'about' && <AboutEditor />}
           {activeTab === 'projects' && <ProjectsEditor />}
           {activeTab === 'sections' && <SectionsEditor />}
-          {activeTab === 'decorations' && <DecorationsEditor />}
-          {activeTab === 'stickers' && <StickerEditor />}
+          {(activeTab === 'stickers' || activeTab === 'decorations') && (
+            <div className="space-y-6">
+              {/* Studio Sub-tabs */}
+              <div className="inline-flex p-1.5 bg-ivory-50 rounded-2xl border-2 border-plum-900 shadow-sm gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStickerStudioSubTab('visual-customizer')}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl font-mono text-xs font-bold transition-all ${
+                    stickerStudioSubTab === 'visual-customizer'
+                      ? 'bg-bordeaux-800 text-ivory-100 shadow-sm'
+                      : 'text-plum-800 hover:bg-butter-300'
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>Visual Customizer</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStickerStudioSubTab('botanical-garden')}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl font-mono text-xs font-bold transition-all ${
+                    stickerStudioSubTab === 'botanical-garden'
+                      ? 'bg-bordeaux-800 text-ivory-100 shadow-sm'
+                      : 'text-plum-800 hover:bg-butter-300'
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Botanical Garden</span>
+                </button>
+              </div>
+
+              {/* Sub-tab content */}
+              {stickerStudioSubTab === 'visual-customizer' ? (
+                <StickerEditor />
+              ) : (
+                <DecorationsEditor />
+              )}
+            </div>
+          )}
           {activeTab === 'branding' && <BrandingEditor />}
           {activeTab === 'skills' && <SkillsEditor />}
           {activeTab === 'education' && <EducationExperienceEditor />}
