@@ -104,6 +104,8 @@ export interface DecorationItemConfig {
   // Specific to Wordle:
   wordleLetters?: string[];
   wordleColors?: string[];
+  type?: string;
+  label?: string;
 }
 
 export interface DetailedDecorationsConfig {
@@ -116,6 +118,7 @@ export interface DetailedDecorationsConfig {
   instantCamera: DecorationItemConfig;
   orchid: DecorationItemConfig;
   microchip: DecorationItemConfig;
+  [key: string]: DecorationItemConfig;
 }
 
 // Legacy toggle for backward compatibility

@@ -259,6 +259,7 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const parsed = JSON.parse(saved);
         return {
+          ...parsed,
           wordle: { ...INITIAL_DETAILED_DECORATIONS.wordle, ...(parsed.wordle || {}) },
           callaLily: { ...INITIAL_DETAILED_DECORATIONS.callaLily, ...(parsed.callaLily || {}) },
           tigerLily1: { ...INITIAL_DETAILED_DECORATIONS.tigerLily1, ...(parsed.tigerLily1 || {}) },
@@ -467,8 +468,18 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
             // 8. Detailed Decorations
             if (doc.detailedDecorations && typeof doc.detailedDecorations === 'object') {
-              setDetailedDecorations((prev) => ({ ...INITIAL_DETAILED_DECORATIONS, ...doc.detailedDecorations }));
-              localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(doc.detailedDecorations));
+              const localSaved = localStorage.getItem(STORAGE_KEYS.DECORATIONS);
+              let localParsed = {};
+              if (localSaved) {
+                try { localParsed = JSON.parse(localSaved); } catch {}
+              }
+              const merged = {
+                ...INITIAL_DETAILED_DECORATIONS,
+                ...doc.detailedDecorations,
+                ...localParsed,
+              };
+              setDetailedDecorations(merged);
+              localStorage.setItem(STORAGE_KEYS.DECORATIONS, JSON.stringify(merged));
             }
 
             // 9. Stickers
