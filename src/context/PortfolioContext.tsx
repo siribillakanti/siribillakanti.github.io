@@ -559,6 +559,17 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       }
     });
+
+    getMediaItem('custom_resume_file').then((storedResume) => {
+      if (storedResume) {
+        setProfile((prev) => {
+          if (prev.resumeUrl && (prev.resumeUrl.startsWith('http://') || prev.resumeUrl.startsWith('https://'))) {
+            return prev;
+          }
+          return { ...prev, resumeUrl: prev.resumeUrl || storedResume };
+        });
+      }
+    });
   }, []);
 
   // Synchronize browser tab title with branding state

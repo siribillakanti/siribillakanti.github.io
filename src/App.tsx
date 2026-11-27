@@ -19,7 +19,21 @@ import { CustomCursor } from './components/Common/CustomCursor';
 import { BrandLogo } from './components/Common/BrandLogo';
 
 const PortfolioContent: React.FC = () => {
-  const { isInitialLoading, selectedProject, setSelectedProject } = usePortfolio();
+  const { isInitialLoading, selectedProject, setSelectedProject, setIsResumeOpen } = usePortfolio();
+
+  // Handle direct navigation to resume via hash (#resume) or path (/resume)
+  useEffect(() => {
+    const handleUrlRoute = () => {
+      const hash = window.location.hash.toLowerCase();
+      const path = window.location.pathname.toLowerCase();
+      if (hash === '#resume' || path.endsWith('/resume')) {
+        setIsResumeOpen(true);
+      }
+    };
+    handleUrlRoute();
+    window.addEventListener('hashchange', handleUrlRoute);
+    return () => window.removeEventListener('hashchange', handleUrlRoute);
+  }, [setIsResumeOpen]);
 
   if (isInitialLoading) {
     return (
